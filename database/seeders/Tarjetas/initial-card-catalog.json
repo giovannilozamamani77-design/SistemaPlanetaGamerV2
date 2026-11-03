@@ -1,0 +1,146 @@
+[
+  {
+    "company": "ENTEL",
+    "face_value_cents": 1000,
+    "purchase_price_cents": 917,
+    "normal_price_cents": 1000,
+    "wholesale_price_cents": 940,
+    "is_active": 1,
+    "wholesale_enabled": 1
+  },
+  {
+    "company": "ENTEL",
+    "face_value_cents": 1500,
+    "purchase_price_cents": 1365,
+    "normal_price_cents": 1500,
+    "wholesale_price_cents": 1395,
+    "is_active": 1,
+    "wholesale_enabled": 0
+  },
+  {
+    "company": "ENTEL",
+    "face_value_cents": 3000,
+    "purchase_price_cents": 2688,
+    "normal_price_cents": 3000,
+    "wholesale_price_cents": 2720,
+    "is_active": 1,
+    "wholesale_enabled": 0
+  },
+  {
+    "company": "ENTEL",
+    "face_value_cents": 5000,
+    "purchase_price_cents": 4478,
+    "normal_price_cents": 5000,
+    "wholesale_price_cents": 4520,
+    "is_active": 1,
+    "wholesale_enabled": 0
+  },
+  {
+    "company": "ENTEL",
+    "face_value_cents": 10000,
+    "purchase_price_cents": 8956,
+    "normal_price_cents": 10000,
+    "wholesale_price_cents": 8960,
+    "is_active": 1,
+    "wholesale_enabled": 0
+  },
+  {
+    "company": "TIGO",
+    "face_value_cents": 1000,
+    "purchase_price_cents": 940,
+    "normal_price_cents": 1000,
+    "wholesale_price_cents": 950,
+    "is_active": 1,
+    "wholesale_enabled": 1
+  },
+  {
+    "company": "TIGO",
+    "face_value_cents": 2000,
+    "purchase_price_cents": 1880,
+    "normal_price_cents": 2000,
+    "wholesale_price_cents": 1900,
+    "is_active": 1,
+    "wholesale_enabled": 0
+  },
+  {
+    "company": "TIGO",
+    "face_value_cents": 3000,
+    "purchase_price_cents": 2820,
+    "normal_price_cents": 3000,
+    "wholesale_price_cents": 2880,
+    "is_active": 1,
+    "wholesale_enabled": 0
+  },
+  {
+    "company": "TIGO",
+    "face_value_cents": 5000,
+    "purchase_price_cents": 4700,
+    "normal_price_cents": 5000,
+    "wholesale_price_cents": 4800,
+    "is_active": 1,
+    "wholesale_enabled": 0
+  },
+  {
+    "company": "TIGO",
+    "face_value_cents": 10000,
+    "purchase_price_cents": 9400,
+    "normal_price_cents": 10000,
+    "wholesale_price_cents": 9500,
+    "is_active": 1,
+    "wholesale_enabled": 0
+  },
+  {
+    "company": "VIVA",
+    "face_value_cents": 1000,
+    "purchase_price_cents": 930,
+    "normal_price_cents": 1000,
+    "wholesale_price_cents": 950,
+    "is_active": 1,
+    "wholesale_enabled": 1
+  },
+  {
+    "company": "VIVA",
+    "face_value_cents": 2000,
+    "purchase_price_cents": 1869,
+    "normal_price_cents": 2000,
+    "wholesale_price_cents": 1920,
+    "is_active": 1,
+    "wholesale_enabled": 0
+  },
+  {
+    "company": "VIVA",
+    "face_value_cents": 3000,
+    "purchase_price_cents": 2751,
+    "normal_price_cents": 3000,
+    "wholesale_price_cents": 2820,
+    "is_active": 1,
+    "wholesale_enabled": 0
+  },
+  {
+    "company": "VIVA",
+    "face_value_cents": 4000,
+    "purchase_price_cents": 3950,
+    "normal_price_cents": 4000,
+    "wholesale_price_cents": 4000,
+    "is_active": 1,
+    "wholesale_enabled": 0
+  },
+  {
+    "company": "VIVA",
+    "face_value_cents": 5000,
+    "purchase_price_cents": 4585,
+    "normal_price_cents": 5000,
+    "wholesale_price_cents": 4690,
+    "is_active": 1,
+    "wholesale_enabled": 0
+  },
+  {
+    "company": "VIVA",
+    "face_value_cents": 10000,
+    "purchase_price_cents": 9900,
+    "normal_price_cents": 10000,
+    "wholesale_price_cents": 10000,
+    "is_active": 1,
+    "wholesale_enabled": 0
+  }
+]

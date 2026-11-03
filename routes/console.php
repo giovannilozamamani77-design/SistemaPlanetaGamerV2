@@ -85,3 +85,8 @@ Artisan::command('telegram:dispatch-due {--limit=100}', function () {
 })->purpose('Recupera intenciones Telegram sin duplicar entregas; no activa envíos');
 
 Schedule::command('telegram:dispatch-due')->everyMinute()->withoutOverlapping()->when(fn () => config('telegram.sending_enabled', false));
+
+// Optional bounded worker for shared hosting; no daemon or external supervisor.
+Schedule::command('queue:work telegram --queue=telegram --stop-when-empty --max-time=45 --timeout=30 --tries=1')
+    ->everyMinute()->withoutOverlapping(3)
+    ->when(fn () => config('telegram.scheduled_worker_enabled', false) && config('telegram.sending_enabled', false));
