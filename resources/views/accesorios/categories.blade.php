@@ -1,0 +1,1 @@
+<x-filament-panels::page><p class="pg-product-hint">Organiza accesorios por cantidad. Las categorías de teléfonos por IMEI quedan reservadas para su inventario individual.</p>{{ $this->table }}</x-filament-panels::page>

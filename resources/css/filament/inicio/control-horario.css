@@ -1,0 +1,52 @@
+.pg-schedule-console { display:grid; gap:14px; color:var(--pg-text); }
+.pg-schedule-overview { display:flex; align-items:center; justify-content:space-between; gap:16px; padding:14px 18px; background:var(--pg-surface); border:1px solid var(--pg-border); border-radius:14px; }
+.pg-schedule-overview h2 { font-weight:700; font-size:1rem; }
+.pg-schedule-overview p,.pg-schedule-note { color:var(--pg-muted); font-size:.8rem; line-height:1.45; }
+.pg-schedule-symbol { display:inline-flex; align-items:center; justify-content:center; flex:none; width:32px; height:32px; border-radius:10px; color:var(--pg-selected-text); background:var(--pg-selected); }
+.pg-schedule-grid { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:12px; }
+.pg-schedule-card { display:flex; flex-direction:column; gap:8px; padding:14px 16px; min-width:0; border:1px solid var(--pg-border); border-radius:14px; background:var(--pg-surface); box-shadow:0 3px 10px #00000008; }
+.pg-schedule-card-title { display:flex; align-items:center; gap:9px; }
+.pg-schedule-card-title h3 { font-size:.9rem; font-weight:700; }
+.pg-schedule-card strong { font-size:1.05rem; font-weight:700; }
+.pg-schedule-card strong small { font-size:.73rem; font-weight:400; color:var(--pg-muted); }
+.pg-schedule-card p,.pg-schedule-turn-values { font-size:.77rem; color:var(--pg-muted); line-height:1.45; }
+.pg-schedule-turn-values { display:flex; flex-wrap:wrap; gap:4px 12px; }
+.pg-schedule-turn-values b { color:var(--pg-text); }
+.pg-schedule-card footer { margin-top:auto; padding-top:2px; }
+.pg-schedule-small-state { margin-left:auto; color:var(--pg-muted); font-size:.65rem; }
+.pg-schedule-card-example { background:linear-gradient(125deg,var(--pg-surface),var(--pg-selected)); }
+.pg-schedule-flow { border:1px solid var(--pg-border); border-radius:14px; padding:12px 16px; background:var(--pg-surface); }
+.pg-schedule-flow h2 { font-size:.8rem; font-weight:700; margin-bottom:10px; }
+.pg-schedule-flow ol { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:12px; }
+.pg-schedule-flow li { display:flex; gap:9px; align-items:center; position:relative; }
+.pg-schedule-flow li:not(:last-child)::after { content:'→'; position:absolute; right:0; color:var(--pg-muted); }
+.pg-schedule-flow li>span { display:flex; width:26px; height:26px; border-radius:50%; align-items:center; justify-content:center; color:var(--pg-selected-text); background:var(--pg-selected); font-size:.75rem; font-weight:700; }
+.pg-schedule-flow b,.pg-schedule-flow small { display:block; line-height:1.4; }
+.pg-schedule-flow b { font-size:.78rem; }
+.pg-schedule-flow small { font-size:.7rem; color:var(--pg-muted); }
+.pg-schedule-impact { padding:12px 14px; border:1px solid var(--pg-border); border-radius:12px; background:var(--pg-selected); font-size:.8rem; line-height:1.5; }
+.pg-schedule-impact h3 { font-weight:700; margin-bottom:6px; }
+.pg-schedule-impact ul { list-style:disc; padding-left:18px; display:grid; gap:4px; }
+.pg-schedule-simulation { border:1px solid var(--pg-border); border-radius:12px; padding:12px 16px; background:var(--pg-selected); }
+.pg-schedule-simulation>p { font-size:.8rem; font-weight:650; }
+.pg-schedule-simulation dl { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:12px; margin-top:12px; }
+.pg-schedule-simulation dt { color:var(--pg-muted); font-size:.75rem; }
+.pg-schedule-simulation dd { font-size:1rem; font-weight:700; }
+@media(max-width:1000px) { .pg-schedule-grid { grid-template-columns:repeat(2,minmax(0,1fr)); } }
+@media(max-width:640px) { .pg-schedule-grid { grid-template-columns:minmax(0,1fr); } .pg-schedule-flow ol { grid-template-columns:repeat(2,minmax(0,1fr)); } .pg-schedule-flow li::after { display:none; } .pg-schedule-overview { align-items:flex-start; } }
+
+.pg-schedule-flow-heading { display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:6px 12px; margin-bottom:9px; }
+.pg-schedule-flow-heading h2 { margin-bottom:0; }
+.pg-schedule-flow-heading p { font-size:.7rem; color:var(--pg-muted); }
+.pg-schedule-impact details { margin-top:5px; }
+.pg-schedule-impact summary { cursor:pointer; font-size:.75rem; font-weight:650; }
+.pg-schedule-impact details ul { margin-top:6px; }
+
+
+.pg-delay-notice { border: 1px solid var(--color-warning-500); border-radius: 1rem; padding: 1rem; background: color-mix(in srgb, var(--color-warning-500) 10%, transparent); }
+.pg-delay-caption { display: block; font-weight: 600; }
+.pg-delay-minutes { display: block; margin: .35rem 0 .75rem; font-size: clamp(2.75rem, 6vw, 4rem); line-height: 1; font-weight: 800; color: var(--color-warning-600); font-variant-numeric: tabular-nums; }
+.dark .pg-delay-minutes { color: var(--color-warning-400); }
+.pg-delay-minutes small { font-size: 1.25rem; }
+.pg-delay-breakdown { margin-bottom: .75rem; display: grid; gap: .3rem; }
+.pg-delay-notice p { font-size: .875rem; }

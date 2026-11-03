@@ -1,0 +1,156 @@
+.pg-loan-fund{display:flex;align-items:center;justify-content:space-between;gap:16px;padding:20px;border:1px solid var(--pg-border);border-radius:16px;background:var(--pg-surface)}.pg-loan-fund span,.pg-loan-preview span,.pg-loan-stats span{display:block;color:var(--pg-muted);font-size:12px}.pg-loan-fund strong{font-size:28px;color:var(--pg-selected-text)}.pg-loan-fund p{max-width:420px;font-size:13px;color:var(--pg-muted)}.pg-loan-preview,.pg-loan-stats{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}.pg-loan-preview>div,.pg-loan-stats>div{padding:14px;border:1px solid var(--pg-border);border-radius:12px;background:var(--pg-surface)}.pg-loan-preview strong,.pg-loan-stats strong{font-size:24px}.pg-loan-preview [data-tone=interest] strong{color:#16a34a}.pg-loan-preview [data-tone=total] strong{color:#ef4444}.pg-loan-preview p{grid-column:1/-1;font-size:13px;color:var(--pg-muted)}.pg-loan-form-actions{display:flex;gap:12px;margin-top:18px}.pg-loan-account{display:flex;align-items:center;gap:20px;border:1px solid var(--pg-border);border-radius:12px;padding:16px}.pg-loan-account img{width:140px;height:140px;object-fit:contain}.pg-loan-account small{display:block;color:var(--pg-muted);margin-top:8px}.pg-loan-detail{display:grid;gap:12px}.pg-loan-ledger{overflow-x:auto}.pg-loan-ledger table{width:100%;font-size:13px}.pg-loan-ledger th,.pg-loan-ledger td{padding:8px;text-align:left;border-bottom:1px solid var(--pg-border)}@media(max-width:640px){.pg-loan-fund,.pg-loan-account{flex-direction:column;align-items:start}.pg-loan-preview,.pg-loan-stats{grid-template-columns:minmax(0,1fr)}}
+
+/* Registro compacto: cuatro tarjetas, sin cabecera ni resumen lateral. */
+.pg-loan-form{--pg-loan-cyan:#24cbd0;--pg-loan-yellow:#e9d931}
+.pg-loan-card-client{--pg-loan-accent:var(--pg-loan-cyan)}
+.pg-loan-card-object,.pg-loan-card-summary{--pg-loan-accent:var(--pg-loan-yellow)}
+.pg-loan-card-conditions{--pg-loan-accent:var(--pg-text)}
+.pg-loan-form .pg-loan-card{border-top:3px solid var(--pg-loan-accent);background:linear-gradient(120deg,color-mix(in srgb,var(--pg-loan-accent) 4%,transparent),transparent 65%),var(--pg-surface)}
+.pg-loan-form .pg-loan-card>.fi-section-header{padding:10px 16px;background:color-mix(in srgb,var(--pg-loan-accent) 5%,transparent)}
+.pg-loan-form .fi-section-content{padding:14px 16px}
+.pg-loan-form .fi-sc{gap:12px}
+.pg-loan-form .fi-section-header-heading{font-size:14px}
+.pg-loan-client-status{padding:5px 9px;border-radius:7px;background:color-mix(in srgb,var(--pg-loan-cyan) 10%,transparent);border-left:3px solid var(--pg-loan-cyan);font-size:12px;color:var(--pg-text)}
+.pg-loan-client-hint{font-size:12px;color:var(--pg-muted)}
+.pg-loan-form-compact .pg-loan-preview{grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}
+.pg-loan-form-compact .pg-loan-preview>div{padding:10px;border-radius:9px}
+.pg-loan-form-compact .pg-loan-preview p{margin:0;font-size:12px}
+.pg-loan-form-compact .pg-loan-preview strong{font-size:clamp(20px,1.8vw,26px);line-height:1.25;color:var(--pg-text);overflow-wrap:anywhere}
+.pg-loan-form-compact .pg-loan-preview [data-tone=interest] strong{color:var(--pg-loan-cyan)}
+.pg-loan-form-compact .pg-loan-preview [data-tone=total]{border-left:4px solid var(--pg-loan-yellow);background:color-mix(in srgb,var(--pg-loan-yellow) 12%,var(--pg-surface))}
+.pg-loan-form-compact .pg-loan-preview [data-tone=total] strong{font-size:clamp(23px,2vw,30px);color:var(--pg-text)}
+.pg-loan-form-compact .pg-loan-preview .pg-loan-compact-dates{grid-column:1/-1;display:flex;flex-wrap:wrap;gap:10px 24px;border:0;background:none;padding:0}
+.pg-loan-form-compact .pg-loan-compact-dates>span{font-size:12px}
+.pg-loan-form-compact .pg-loan-compact-dates strong{font-size:15px;margin-left:6px;white-space:nowrap}
+.pg-loan-form-compact .pg-loan-form-actions{display:flex;flex-wrap:wrap;gap:10px;margin-top:12px}
+@media(max-width:480px){.pg-loan-form-compact .pg-loan-preview{grid-template-columns:minmax(0,1fr)}}
+
+.pg-loan-schedule{font-size:12px;color:var(--pg-muted);line-height:1.6;margin:0}
+.pg-loan-schedule strong{color:var(--pg-text)}
+.pg-loan-review{display:grid;gap:12px}
+.pg-loan-review-warning{padding:12px 14px;border-left:4px solid #e9d931;border-radius:8px;background:color-mix(in srgb,#e9d931 12%,var(--pg-surface));color:var(--pg-text)}
+.pg-loan-saving{position:fixed;inset:0;z-index:9999;display:none;align-items:center;justify-content:center;gap:14px;background:#17141de6;color:white;flex-direction:column}
+.pg-loan-spinner{width:36px;height:36px;border:3px solid #ffffff40;border-top-color:#24cbd0;border-radius:50%;animation:pg-loan-spin .8s linear infinite}
+@keyframes pg-loan-spin{to{transform:rotate(360deg)}}
+@media(prefers-reduced-motion:reduce){.pg-loan-spinner{animation:none}}
+
+.pg-loan-form .fi-sc{align-items:start;align-content:start}
+
+.pg-loan-registration-heading{display:flex;align-items:center;flex-wrap:wrap;gap:6px 18px}
+.pg-loan-registration-heading h1{margin:0;font-size:20px;line-height:1.3;font-weight:700;color:var(--pg-text)}
+.pg-loan-registration-heading>span{font-size:12px;color:var(--pg-muted)}
+.pg-loan-registration-heading strong{color:var(--pg-text);font-weight:600}
+
+/* Confirmación: datos revisados, sin campos editables ni cálculos. */
+.pg-loan-review{gap:10px}
+.pg-loan-review p,.pg-loan-review dl,.pg-loan-review dd,.pg-loan-review h3{margin:0}
+.pg-loan-review-parties{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;align-items:start}
+.pg-loan-review-card{min-width:0;padding:11px 13px;border:1px solid var(--pg-border);border-radius:10px;background:var(--pg-surface)}
+.pg-loan-review-card[data-tone=client]{border-top:3px solid #24cbd0;background:linear-gradient(120deg,#24cbd00a,transparent),var(--pg-surface)}
+.pg-loan-review-card[data-tone=object]{border-top:3px solid #e9d931;background:linear-gradient(120deg,#e9d9310a,transparent),var(--pg-surface)}
+.pg-loan-review h3{font-size:12px;font-weight:600;color:var(--pg-muted)}
+.pg-loan-review-name{display:block;margin-top:5px;font-size:15px;color:var(--pg-text);overflow-wrap:anywhere}
+.pg-loan-review .pg-loan-review-description{margin-top:5px;font-size:12px;white-space:pre-wrap;overflow-wrap:anywhere}
+.pg-loan-review .pg-loan-review-facts{display:grid;gap:5px;margin-top:8px;font-size:12px}
+.pg-loan-review-facts>div{display:flex;flex-wrap:wrap;gap:2px 8px}
+.pg-loan-review dt{color:var(--pg-muted);font-size:11px}
+.pg-loan-review dd{color:var(--pg-text);overflow-wrap:anywhere}
+.pg-loan-review-section-heading{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:4px 10px}
+.pg-loan-review-section-heading>span{font-size:11px;color:var(--pg-muted)}
+.pg-loan-review .pg-loan-review-dates{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin-top:8px}
+.pg-loan-review-dates dd{font-size:14px;font-weight:600}
+.pg-loan-review .pg-loan-review-caption{font-size:11px;color:var(--pg-muted);margin-top:6px}
+.pg-loan-review-amounts{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
+.pg-loan-review-amounts>div{min-width:0;padding:10px;border:1px solid var(--pg-border);border-radius:10px;background:var(--pg-surface)}
+.pg-loan-review-amounts dd{margin-top:4px;font-size:clamp(18px,2vw,23px);font-weight:700;line-height:1.3}
+.pg-loan-review-amounts [data-tone=interest] dd{color:#24cbd0}
+.pg-loan-review-amounts [data-tone=total]{border-left:3px solid #e9d931;background:color-mix(in srgb,#e9d931 10%,var(--pg-surface))}
+.pg-loan-review .pg-loan-review-warning{font-size:12px;padding:9px 12px}
+@media(max-width:520px){.pg-loan-review-parties{grid-template-columns:minmax(0,1fr)}.pg-loan-review-amounts{gap:5px}.pg-loan-review-amounts>div{padding:8px}.pg-loan-review-dates dd{font-size:12px}}
+
+.pg-loan-available-capital{margin-left:auto;display:flex;align-items:center;gap:10px;padding:8px 12px;border:1px solid var(--pg-border);border-left:3px solid #24cbd0;border-radius:9px;background:var(--pg-surface)}
+.pg-loan-available-capital>span{font-size:12px;color:var(--pg-muted)}
+.pg-loan-available-capital>strong{font-size:20px;color:#24cbd0;white-space:nowrap}
+@media(max-width:520px){.pg-loan-available-capital{margin-left:0}}
+
+.pg-loan-available-capital[data-insufficient=true]{border-color:#ef4444;background:color-mix(in srgb,#ef4444 10%,var(--pg-surface))}
+.pg-loan-available-capital[data-insufficient=true]>strong{color:#ef4444}
+.pg-loan-capital-alert{margin-top:12px;padding:10px 13px;border:1px solid #ef4444;border-left:4px solid #ef4444;border-radius:10px;background:color-mix(in srgb,#ef4444 10%,var(--pg-surface));color:var(--pg-text);font-size:12px}
+.pg-loan-capital-alert>strong{color:#ef4444;font-size:14px}
+.pg-loan-capital-alert p{margin:5px 0 0;line-height:1.5}
+
+.pg-loan-record{display:grid;gap:14px}
+.pg-loan-record-parties{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px;align-items:start}
+.pg-loan-record-card{min-width:0;border:1px solid var(--pg-border);border-radius:14px;background:var(--pg-surface);overflow:hidden}
+.pg-loan-record-card h3{margin:0;padding:12px 16px;border-bottom:1px solid var(--pg-border);font-size:14px;font-weight:650;color:var(--pg-text)}
+.pg-loan-record-fields{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:15px 20px;margin:0;padding:16px}
+.pg-loan-record-client{grid-template-columns:1.5fr 1fr 1.3fr}
+.pg-loan-record-contract{grid-template-columns:repeat(4,minmax(0,1fr))}
+.pg-loan-record-current{grid-template-columns:repeat(3,minmax(0,1fr))}
+.pg-loan-record-fields dt{font-size:12px;color:var(--pg-muted);margin-bottom:5px}
+.pg-loan-record-fields dd{margin:0;font-size:13px;font-weight:600;white-space:pre-wrap;overflow-wrap:anywhere;color:var(--pg-text)}
+.pg-loan-record-fields [data-tone=total] dd{color:#22c55e;font-size:17px}
+.pg-loan-record-status{display:inline-block;padding:2px 7px;border-radius:6px;background:#22c55e18;color:#22c55e;font-size:12px}
+.pg-loan-record-status[data-state=CON_MULTA]{background:#f59e0b18;color:#f59e0b}
+.pg-loan-record-status[data-state=PERDIDA_TOTAL]{background:#ef444418;color:#ef4444}
+.pg-loan-record-note{font-size:11px;color:var(--pg-muted);margin:0;padding:0 16px 12px;line-height:1.5}
+@media(max-width:760px){.pg-loan-record-parties{grid-template-columns:minmax(0,1fr)}.pg-loan-record-contract{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:420px){.pg-loan-record-client,.pg-loan-record-current{grid-template-columns:minmax(0,1fr)}}
+
+.pg-loan-record-card h3+.pg-loan-record-note{padding-top:10px}.pg-loan-record-note a{color:#24cbd0;text-decoration:underline}
+
+.pg-loan-print-action{min-height:44px;gap:9px;border-radius:10px;padding:7px 13px;border:1px solid color-mix(in srgb,#24cbd0 55%,var(--pg-border))}
+.pg-loan-print-action .fi-icon{box-sizing:content-box;width:18px;height:18px;padding:5px;border:1px solid currentColor;border-radius:7px;background:#ffffff12}
+
+.pg-loan-overview{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:12px}.pg-loan-overview-card{--loan-tone:#25cbd0;display:flex;align-items:flex-start;gap:12px;min-width:0;padding:16px;border:1px solid color-mix(in srgb,var(--loan-tone) 28%,var(--pg-border));border-top:3px solid var(--loan-tone);border-radius:14px;background:linear-gradient(135deg,color-mix(in srgb,var(--loan-tone) 10%,var(--pg-surface)),var(--pg-surface))}.pg-loan-overview-card[data-tone=active]{--loan-tone:#34d399}.pg-loan-overview-card[data-tone=late]{--loan-tone:#fbbf24}.pg-loan-overview-card[data-tone=lost]{--loan-tone:#fb7185}.pg-loan-overview-card[data-tone=total]{--loan-tone:#a78bfa}.pg-loan-overview-icon{box-sizing:content-box;width:20px;height:20px;flex-shrink:0;padding:8px;border-radius:10px;color:var(--loan-tone);background:color-mix(in srgb,var(--loan-tone) 14%,transparent)}.pg-loan-overview-card span,.pg-loan-overview-card small{display:block;color:var(--pg-muted);font-size:12px}.pg-loan-overview-card span{font-weight:600}.pg-loan-overview-card strong{display:block;margin:5px 0;font-size:26px;line-height:1.2;font-weight:700;color:var(--loan-tone);overflow-wrap:anywhere}.pg-loan-overview-card small{font-size:11px;line-height:1.4}@media(max-width:1280px){.pg-loan-overview{grid-template-columns:repeat(3,minmax(0,1fr))}}@media(max-width:800px){.pg-loan-overview{grid-template-columns:repeat(2,minmax(0,1fr))}}@media(max-width:480px){.pg-loan-overview{grid-template-columns:minmax(0,1fr)}}
+
+/* C242: fluid registration, one form with two presentation choices. */
+.pg-loan-registration{width:100%;min-width:0;display:grid;gap:1rem}
+.pg-loan-registration .pg-loan-registration-heading{gap:.75rem 1rem}
+.pg-loan-heading-identity{display:flex;align-items:baseline;flex-wrap:wrap;gap:.35rem 1rem;margin-right:auto}
+.pg-loan-heading-identity>span{font-size:.8rem;color:var(--pg-muted)}
+.pg-loan-layout-switch{display:inline-flex;gap:.2rem;padding:.2rem;border:1px solid var(--pg-border);border-radius:.7rem;background:var(--pg-surface)}
+.pg-loan-layout-switch button{display:flex;align-items:center;gap:.4rem;padding:.4rem .6rem;border-radius:.45rem;color:var(--pg-muted);font-size:.75rem;font-weight:600;cursor:pointer}
+.pg-loan-layout-switch button[aria-pressed=true]{color:var(--pg-text);background:color-mix(in srgb,#24cbd0 15%,var(--pg-surface))}
+.pg-loan-layout-switch button:focus-visible{outline:2px solid #24cbd0;outline-offset:2px}
+.pg-loan-layout-switch svg{width:1rem;height:1rem;flex-shrink:0}
+.pg-loan-registration .pg-loan-available-capital{margin-left:0}
+.pg-loan-registration .pg-loan-registration-grid>.fi-sc{display:grid;grid-template-columns:minmax(0,1fr);gap:.85rem;align-items:start}
+.pg-loan-registration-grid>.fi-sc>*{min-width:0}
+.pg-loan-registration .pg-loan-card{border:1px solid color-mix(in srgb,var(--pg-loan-accent) 23%,var(--pg-border));border-radius:.9rem;overflow:hidden;background:var(--pg-surface);box-shadow:0 2px 8px #00000008}
+.pg-loan-registration .pg-loan-card>.fi-section-header{padding:.7rem .9rem;background:linear-gradient(105deg,color-mix(in srgb,var(--pg-loan-accent) 9%,var(--pg-surface)),var(--pg-surface));border-bottom:1px solid var(--pg-border)}
+.pg-loan-registration .pg-loan-card>.fi-section-header .fi-icon{color:var(--pg-loan-accent)}
+.pg-loan-registration .fi-section-content{padding:.9rem}
+.pg-loan-registration .pg-loan-form-actions{margin-top:.85rem}
+@media(min-width:60rem){.pg-loan-registration .pg-loan-registration-grid>.fi-sc{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(min-width:88rem){.pg-loan-registration[data-layout=columns] .pg-loan-registration-grid>.fi-sc{grid-template-columns:repeat(3,minmax(0,1fr))}.pg-loan-registration[data-layout=columns] .pg-loan-registration-grid>.fi-sc>:last-child{grid-column:1/-1}}
+@media(max-width:42rem){.pg-loan-registration-heading>div{width:100%}.pg-loan-registration .pg-loan-available-capital{justify-content:space-between}.pg-loan-layout-switch{width:fit-content}}
+
+/* C243: optional cash-box workspace; same inputs, review and submit action. */
+.pg-loan-cashbox-metrics,.pg-loan-cashbox-only{display:none}
+.pg-loan-registration[data-layout=cashbox] .pg-loan-cashbox-metrics{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:.85rem}
+.pg-loan-registration[data-layout=cashbox] .pg-loan-registration-heading>.pg-loan-available-capital{display:none}
+.pg-loan-cashbox-metrics article{--loan-metric:#60a5fa;display:flex;align-items:center;gap:.9rem;min-width:0;padding:1.1rem;border:1px solid color-mix(in srgb,var(--loan-metric) 35%,var(--pg-border));border-radius:1rem;background:linear-gradient(125deg,color-mix(in srgb,var(--loan-metric) 8%,var(--pg-surface)),var(--pg-surface))}
+.pg-loan-cashbox-metrics article[data-tone=capital]{--loan-metric:#a78bfa}
+.pg-loan-cashbox-metrics article[data-tone=interest]{--loan-metric:#24cbd0}
+.pg-loan-cashbox-metrics article[data-tone=total]{--loan-metric:#e9d931}
+.pg-loan-cashbox-metrics article[data-insufficient=true]{--loan-metric:#ef4444}
+.pg-loan-cashbox-metrics article>svg{box-sizing:content-box;width:1.15rem;height:1.15rem;flex-shrink:0;padding:.6rem;border-radius:.8rem;color:var(--loan-metric);background:color-mix(in srgb,var(--loan-metric) 12%,transparent)}
+.pg-loan-cashbox-metrics article>div{min-width:0}
+.pg-loan-cashbox-metrics span,.pg-loan-cashbox-metrics small{display:block;color:var(--pg-muted);font-size:.75rem}
+.pg-loan-cashbox-metrics strong{display:block;margin:.3rem 0;font-size:clamp(1.25rem,1.7vw,1.8rem);line-height:1.3;color:var(--pg-text);overflow-wrap:anywhere}
+.pg-loan-cashbox-metrics article[data-insufficient=true] strong{color:#ef4444}
+.pg-loan-registration[data-layout=cashbox] .pg-loan-form{display:grid;grid-template-columns:minmax(0,1fr) 17rem;gap:1.2rem;align-items:start}
+.pg-loan-registration[data-layout=cashbox] .pg-loan-form>.fi-sc{min-width:0;padding:1rem;border:1px solid var(--pg-border);border-radius:1rem;background:var(--pg-surface)}
+.pg-loan-registration[data-layout=cashbox] .pg-loan-registration-actions{position:sticky;top:5rem;padding:1rem;border:1px solid var(--pg-border);border-radius:1rem;background:var(--pg-surface)}
+.pg-loan-registration[data-layout=cashbox] .pg-loan-cashbox-only{display:block}
+.pg-loan-registration-actions h2,.pg-loan-registration-actions h3{font-size:.9rem;font-weight:700;color:var(--pg-text);margin:0 0 .6rem}
+.pg-loan-registration-actions p{color:var(--pg-muted);font-size:.75rem;line-height:1.6}
+.pg-loan-registration[data-layout=cashbox] .pg-loan-form-actions{flex-direction:column;margin-top:.85rem}
+.pg-loan-registration[data-layout=cashbox] .pg-loan-form-actions>*{width:100%;justify-content:center}
+.pg-loan-registration-help{border-top:1px solid var(--pg-border);margin-top:1rem;padding-top:1rem}
+.pg-loan-registration[data-layout=cashbox] .pg-loan-preview>div{display:none}
+.pg-loan-registration[data-layout=cashbox] .pg-loan-card{border-color:var(--pg-border);background:transparent;box-shadow:none}
+.pg-loan-registration[data-layout=cashbox] .pg-loan-card>.fi-section-header{background:transparent;border-bottom:0;padding-bottom:0}
+@media(max-width:80rem){.pg-loan-registration[data-layout=cashbox] .pg-loan-cashbox-metrics{grid-template-columns:repeat(2,minmax(0,1fr))}.pg-loan-registration[data-layout=cashbox] .pg-loan-form{grid-template-columns:minmax(0,1fr)}.pg-loan-registration[data-layout=cashbox] .pg-loan-registration-actions{position:static}.pg-loan-registration[data-layout=cashbox] .pg-loan-form-actions{flex-direction:row;flex-wrap:wrap}.pg-loan-registration[data-layout=cashbox] .pg-loan-form-actions>*{width:auto}}
+@media(max-width:42rem){.pg-loan-registration[data-layout=cashbox] .pg-loan-cashbox-metrics{grid-template-columns:minmax(0,1fr)}.pg-loan-registration[data-layout=cashbox] .pg-loan-form>.fi-sc{padding:.65rem}.pg-loan-layout-switch{flex-wrap:wrap}}

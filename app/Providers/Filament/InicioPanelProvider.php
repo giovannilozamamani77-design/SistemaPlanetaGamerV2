@@ -2,6 +2,12 @@
 
 namespace App\Providers\Filament;
 
+use App\Filament\Navigation\PanelNavigation;
+use App\Filament\Pages\Usuarios\EditOwnProfile;
+use App\Livewire\Navigation\Sidebar;
+use App\Livewire\Navigation\Topbar;
+use Filament\Enums\ThemeMode;
+use Filament\Enums\UserMenuPosition;
 use Filament\Http\Middleware\Authenticate;
 use Filament\Http\Middleware\AuthenticateSession;
 use Filament\Http\Middleware\DisableBladeIconComponents;
@@ -10,6 +16,7 @@ use Filament\Pages\Dashboard;
 use Filament\Panel;
 use Filament\PanelProvider;
 use Filament\Support\Colors\Color;
+use Filament\View\PanelsRenderHook;
 use Filament\Widgets\AccountWidget;
 use Filament\Widgets\FilamentInfoWidget;
 use Illuminate\Cookie\Middleware\AddQueuedCookiesToResponse;
@@ -28,8 +35,27 @@ class InicioPanelProvider extends PanelProvider
             ->id('inicio')
             ->path('inicio')
             ->login()
+            ->brandName('Planeta Gamer')
+            ->brandLogo(fn () => view('filament.branding.logo'))
+            ->brandLogoHeight('2.5rem')
+            ->defaultThemeMode(ThemeMode::Dark)
+            ->sidebarCollapsibleOnDesktop()
+            ->sidebarWidth('230px')
+            ->collapsedSidebarWidth('76px')
+            ->sidebarLivewireComponent(Sidebar::class)
+            ->topbarLivewireComponent(Topbar::class)
+            ->userMenu(position: UserMenuPosition::Sidebar)
+            ->navigationGroups(PanelNavigation::groups())
+            ->navigationItems(PanelNavigation::items())
+            ->viteTheme('resources/css/filament/inicio/theme.css')
+            ->renderHook(PanelsRenderHook::BODY_END, function () {
+                session()->forget(['cajas.close_draft', 'cajas.recovery_login', 'cajas.clear_close_draft']);
+
+                return view('cajas.retired-storage-cleanup');
+            })
+            ->profile(EditOwnProfile::class, isSimple: false)
             ->colors([
-                'primary' => Color::Amber,
+                'primary' => Color::Violet,
             ])
             ->discoverResources(in: app_path('Filament/Resources'), for: 'App\Filament\Resources')
             ->discoverPages(in: app_path('Filament/Pages'), for: 'App\Filament\Pages')

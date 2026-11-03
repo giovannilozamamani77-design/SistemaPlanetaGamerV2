@@ -1,0 +1,1 @@
+<x-filament-panels::page><p class="text-sm">Estas cuentas reciben el efectivo de Tarjetas. Puedes tener varias habilitadas. Desactivar no elimina los depósitos anteriores.</p>{{ $this->table }}</x-filament-panels::page>

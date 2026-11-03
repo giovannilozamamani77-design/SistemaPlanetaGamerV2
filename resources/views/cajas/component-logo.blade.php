@@ -1,0 +1,1 @@
+<span class="pg-component-logo pg-component-logo--{{ pathinfo($file, PATHINFO_FILENAME) }}" title="{{ $brand }}"><img src="{{ asset('images/cajas/components/'.$file) }}" alt="{{ $brand }}" width="34" height="34" decoding="async" draggable="false"></span>

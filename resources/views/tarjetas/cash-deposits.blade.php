@@ -1,0 +1,1 @@
+<x-filament-panels::page><p class="text-sm">Depósitos realizados desde el efectivo de Tarjetas. Las cuentas se muestran como estaban al registrar cada depósito.</p>{{ $this->table }}</x-filament-panels::page>

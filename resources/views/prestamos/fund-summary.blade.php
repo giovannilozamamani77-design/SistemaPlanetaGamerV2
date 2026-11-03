@@ -1,0 +1,1 @@
+<div class="pg-loan-fund"><div><span>Capital disponible para prestar</span><strong>{{ $summary['initialized'] ? 'Bs '.\App\Support\Bolivianos::formatCompact($summary['available_cents']) : 'Falta saldo inicial' }}</strong></div><p>Fondo independiente · Yape Préstamos. Aportes y retiros reales los registra Administración.</p></div>

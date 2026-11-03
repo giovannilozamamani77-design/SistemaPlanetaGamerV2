@@ -1,0 +1,1 @@
+<div class="pg-purchase-cash"><div><span>Efectivo disponible</span><strong>{{ $cash_cents === null ? 'Sin conteo inicial' : 'Bs '.\App\Support\Bolivianos::formatCompact($cash_cents) }}</strong>@if ($after_cents !== null)<span>Después de la entrega: <b>Bs {{ \App\Support\Bolivianos::formatCompact($after_cents) }}</b></span>@endif</div></div>

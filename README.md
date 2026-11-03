@@ -1,58 +1,38 @@
-<p align="center"><a href="https://laravel.com" target="_blank"><img src="https://raw.githubusercontent.com/laravel/art/master/logo-lockup/5%20SVG/2%20CMYK/1%20Full%20Color/laravel-logolockup-cmyk-red.svg" width="400" alt="Laravel Logo"></a></p>
+# Planeta Gamer V2
 
-<p align="center">
-<a href="https://github.com/laravel/framework/actions"><img src="https://github.com/laravel/framework/workflows/tests/badge.svg" alt="Build Status"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/dt/laravel/framework" alt="Total Downloads"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/v/laravel/framework" alt="Latest Stable Version"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/l/laravel/framework" alt="License"></a>
-</p>
+Sistema administrativo Laravel/Filament para Cajas, Tarjetas, Préstamos, Accesorios, Notificaciones y Reportes.
 
-## About Laravel
+## Requisitos
 
-Laravel is a web application framework with expressive, elegant syntax. We believe development must be an enjoyable and creative experience to be truly fulfilling. Laravel takes the pain out of development by easing common tasks used in many web projects, such as:
+- PHP 8.5 recomendado (las dependencias del lock requieren como mínimo PHP 8.4.1).
+- Composer 2, extensiones requeridas por Composer y GD para gráficos de reportes.
+- Node/npm para compilar los recursos con `npm ci` y `npm run build`.
+- Base de datos, almacenamiento privado, cron y ejecución de colas configurados en el servidor.
 
-- [Simple, fast routing engine](https://laravel.com/docs/routing).
-- [Powerful dependency injection container](https://laravel.com/docs/container).
-- Multiple back-ends for [session](https://laravel.com/docs/session) and [cache](https://laravel.com/docs/cache) storage.
-- Expressive, intuitive [database ORM](https://laravel.com/docs/eloquent).
-- Database agnostic [schema migrations](https://laravel.com/docs/migrations).
-- [Robust background job processing](https://laravel.com/docs/queues).
-- [Real-time event broadcasting](https://laravel.com/docs/broadcasting).
+## Configuración
 
-Laravel is accessible, powerful, and provides tools required for large, robust applications.
+Instalar dependencias con `composer install` para desarrollo o `composer install --no-dev --optimize-autoloader` para producción. Conservar composer.lock y package-lock.json.
 
-## Learning Laravel
+Crear un `.env` privado a partir de `.env.example` y configurar conexión, URL HTTPS y entorno. En una instalación nueva y vacía, generar una APP_KEY propia. No regenerarla en actualizaciones de una instalación con datos.
 
-Laravel has the most extensive and thorough [documentation](https://laravel.com/docs) and video tutorial library of all modern web application frameworks, making it a breeze to get started with the framework.
+El directorio público del servidor debe apuntar únicamente a `public/`. Compilar recursos con `npm ci` y `npm run build`; `public/build` y las dependencias no están versionados. Dar permisos adecuados a `storage` y `bootstrap/cache`.
 
-In addition, [Laracasts](https://laracasts.com) contains thousands of video tutorials on a range of topics including Laravel, modern PHP, unit testing, and JavaScript. Boost your skills by digging into our comprehensive video library.
+Las migraciones se incluyen; las bases de datos reales, respaldos, archivos privados, tokens y contraseñas no. No importar SQLite directamente en MySQL/MariaDB. Validar primero las migraciones y flujos en una base aislada del motor de destino.
 
-You can also watch bite-sized lessons with real-world projects on [Laravel Learn](https://laravel.com/learn), where you will be guided through building a Laravel application from scratch while learning PHP fundamentals.
+**No ejecutar el DatabaseSeeder general en producción:** todavía crea un usuario de prueba. El administrador inicial y los permisos deben prepararse con un procedimiento seguro de instalación. Nunca usar credenciales predeterminadas públicas.
 
-## Agentic Development
+## Pruebas
 
-Laravel's predictable structure and conventions make it ideal for AI coding agents like Claude Code, Cursor, and GitHub Copilot. Install [Laravel Boost](https://laravel.com/docs/ai) to supercharge your AI workflow:
+`php artisan test --compact`
 
-```bash
-composer require laravel/boost --dev
+La configuración de pruebas usa SQLite en memoria. No cambiarla para apuntar a una base operativa. Las pruebas no deben enviar mensajes reales a Telegram ni operar cajas reales.
 
-php artisan boost:install
-```
+## Estado del despliegue
 
-Boost provides your agent 15+ tools and skills that help agents build Laravel applications while following best practices.
+Esta publicación de código no instala ni activa el sistema en Hostinger. La instalación prevista es Hostinger Business, PHP 8.5/SSH y una base nueva vacía. Configurar el programador y las colas de acuerdo con los recursos del hosting; no asumir un worker permanente de VPS.
 
-## Contributing
+Antes de desplegar, resolver los avisos de seguridad pendientes del lock (Livewire GHSA-mhf7-xp6r-6qrc y Symfony Mime CVE-2026-45070), repetir auditoría/pruebas y validar MySQL/MariaDB. No ejecutar `composer update`, `composer setup`, seeders generales o migraciones destructivas a ciegas sobre producción.
 
-Thank you for considering contributing to the Laravel framework! The contribution guide can be found in the [Laravel documentation](https://laravel.com/docs/contributions).
+## Seguridad de archivos
 
-## Code of Conduct
-
-In order to ensure that the Laravel community is welcoming to all, please review and abide by the [Code of Conduct](https://laravel.com/docs/contributions#code-of-conduct).
-
-## Security Vulnerabilities
-
-If you discover a security vulnerability within Laravel, please send an e-mail to Taylor Otwell via [taylor@laravel.com](mailto:taylor@laravel.com). All security vulnerabilities will be promptly addressed.
-
-## License
-
-The Laravel framework is open-sourced software licensed under the [MIT license](https://opensource.org/licenses/MIT).
+No publicar `.env`, credenciales de Giovanni, archivos SQLite/SQL, copias de seguridad ni `storage/app/private`. Los respaldos limpios se entregan por separado y siguen siendo privados. Mantener una copia de seguridad privada del servidor antes de actualizar.

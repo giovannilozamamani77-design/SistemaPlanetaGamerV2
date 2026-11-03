@@ -1,0 +1,1 @@
+<span style="display:inline-flex;align-items:baseline;flex-wrap:wrap;gap:.75rem">Venta rápida<span style="font-size:.875rem;font-weight:400;color:#a5b4cf">Atiende por: <strong style="color:var(--pg-text,inherit)">{{ $responsible }}</strong></span></span>

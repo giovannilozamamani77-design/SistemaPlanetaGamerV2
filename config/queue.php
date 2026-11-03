@@ -31,6 +31,15 @@ return [
 
     'connections' => [
 
+        'telegram' => [
+            'driver' => 'database',
+            'connection' => null,
+            'table' => 'jobs',
+            'queue' => 'telegram',
+            'retry_after' => 90,
+            'after_commit' => true,
+        ],
+
         'sync' => [
             'driver' => 'sync',
         ],

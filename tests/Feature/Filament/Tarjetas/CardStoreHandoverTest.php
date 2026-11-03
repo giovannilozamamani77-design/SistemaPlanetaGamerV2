@@ -1,0 +1,105 @@
+<?php
+
+use App\Domain\Incidencias\Models\EconomicIncident;
+use App\Domain\Incidencias\Queries\OwnEconomicHistoryQuery;
+use App\Domain\Tarjetas\Actions\RecordCardSaleAction;
+use App\Domain\Tarjetas\Actions\RecordCardStoreCountAction;
+use App\Domain\Tarjetas\Models\CardProduct;
+use App\Domain\Tarjetas\Models\CardStock;
+use App\Domain\Tarjetas\Models\CardStore;
+use App\Domain\Tarjetas\Models\CardStoreCount;
+use App\Domain\Tarjetas\Models\CardStoreSession;
+use App\Filament\Pages\Tarjetas\CardStoreClosing;
+use App\Filament\Pages\Tarjetas\CardStoreOpening;
+use App\Models\User;
+use Database\Seeders\Incidencias\IncidenciasPermissionsSeeder;
+use Database\Seeders\Tarjetas\CardSalesPermissionsSeeder;
+use Database\Seeders\Tarjetas\CardStoreSessionsPermissionsSeeder;
+use Database\Seeders\Tarjetas\TarjetasPermissionsSeeder;
+use Database\Seeders\Usuarios\UsuariosPermissionsSeeder;
+use Filament\Facades\Filament;
+use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Str;
+use Livewire\Livewire;
+
+uses(RefreshDatabase::class);
+it('C187 hands over the real cash and cards through the forms without charging old shortages twice', function (bool $extra) {
+    expect(config('database.connections.sqlite.database'))->toBe(':memory:');
+    $this->seed([UsuariosPermissionsSeeder::class, TarjetasPermissionsSeeder::class, CardSalesPermissionsSeeder::class, CardStoreSessionsPermissionsSeeder::class, IncidenciasPermissionsSeeder::class]);
+    Filament::setCurrentPanel(Filament::getPanel('inicio'));
+    $admin = User::factory()->create();
+    $admin->assignRole('administrador');
+    $a = User::factory()->create();
+    $a->assignRole('cajera');
+    $b = User::factory()->create();
+    $b->assignRole('cajera');
+    $store = CardStore::create(['code' => 'TIENDA', 'cash_balance_cents' => 100000, 'initialized_at' => now(), 'initialized_by' => $admin->id]);
+    $t = CardProduct::create(['company' => 'TIGO', 'face_value_cents' => 1000, 'purchase_price_cents' => 940, 'normal_price_cents' => 1000, 'wholesale_price_cents' => 950, 'is_active' => true, 'revision' => 1, 'created_by' => $admin->id]);
+    $c = CardProduct::create(['company' => 'VIVA', 'face_value_cents' => 4000, 'purchase_price_cents' => 3950, 'normal_price_cents' => 4000, 'wholesale_price_cents' => 4000, 'is_active' => true, 'revision' => 1, 'created_by' => $admin->id]);
+    CardStock::create(['card_store_id' => $store->id, 'card_product_id' => $t->id, 'quantity' => 100]);
+    CardStock::create(['card_store_id' => $store->id, 'card_product_id' => $c->id, 'quantity' => 10]);
+    $this->actingAs($a);
+    Livewire::test(CardStoreOpening::class)->call('confirmOpening')->assertHasNoErrors();
+    $pageA = Livewire::test(CardStoreClosing::class)->set('data.cash', '995');
+    $state = $pageA->get('data.stocks');
+    $ti = array_search($t->id, array_column($state, 'product_id'));
+    $ci = array_search($c->id, array_column($state, 'product_id'));
+    $pageA->set('data.stocks.'.$ti.'.quantity', '97')->set('data.stocks.'.$ci.'.quantity', '9');
+    $closedData = $pageA->get('data');
+    $pageA->call('confirmClosing')->assertHasNoErrors();
+    $closed = CardStoreCount::where('kind', 'CLOSE')->sole();
+    expect($closed->shortage_cents)->toBe(7500);
+    expect(CardStore::sole()->cash_balance_cents)->toBe(99500);
+    expect($t->stock()->first()->quantity)->toBe(97);
+    expect($c->stock()->first()->quantity)->toBe(9);
+    $this->actingAs($b);
+    $pageB = Livewire::test(CardStoreOpening::class)->assertSet('data.cash', '995')->assertSet('data.stocks.'.$ti.'.quantity', 97)->assertSet('data.stocks.'.$ci.'.quantity', 9);
+    expect($pageB->instance()->getSchema('form')->toHtml())->not->toContain('type="password"');
+    // Cancelling a modified reception must not create a second debt or opening.
+    $pageB->set('data.cash', '990')->call('cancelOpening');
+    expect(CardStoreCount::count())->toBe(2);
+    expect(EconomicIncident::count())->toBe(3);
+    expect(CardStoreSession::where('active_slot', 1)->count())->toBe(0);
+    $pageB = Livewire::test(CardStoreOpening::class)->assertSet('data.cash', '995');
+    if ($extra) {
+        $pageB->set('data.cash', '994')->set('data.stocks.'.$ti.'.quantity', '96');
+    }
+    $receiveData = $pageB->get('data');
+    $pageB->call('confirmOpening')->assertHasNoErrors();
+    $received = CardStoreCount::where('kind', 'OPEN')->latest('id')->first();
+    expect($received->shortage_cents)->toBe($extra ? 1100 : 0);
+    expect($received->responsible_user_id)->toBe($a->id);
+    expect($received->cash_expected_cents)->toBe(99500);
+    $lines = collect($received->lines)->keyBy('product_id');
+    expect($lines[$t->id]['expected'])->toBe(97);
+    expect($lines[$c->id]['expected'])->toBe(9);
+    $counts = app(RecordCardStoreCountAction::class);
+    expect($counts->open($b, $receiveData)->id)->toBe($received->id);
+    expect($counts->close($a, $closedData)->id)->toBe($closed->id);
+    expect(CardStoreSession::where('active_slot', 1)->sole()->user_id)->toBe($b->id);
+    expect(CardStoreCount::count())->toBe(3);
+    $own = app(OwnEconomicHistoryQuery::class);
+    expect($own->execute($a)->sum('pending_cents'))->toBe($extra ? 8600 : 7500);
+    expect($own->execute($b)->count())->toBe(0);
+    expect($own->execute($admin)->count())->toBe(0);
+    expect(EconomicIncident::count())->toBe($extra ? 5 : 3);
+    expect(EconomicIncident::where('status', 'CONFIRMADA')->count())->toBe($extra ? 5 : 3);
+    if ($extra) {
+        $new = EconomicIncident::where('source_reference', 'card-open:'.$received->id)->get();
+        expect($new->sum('amount_cents'))->toBe(1100);
+        expect($new->pluck('user_id')->unique()->all())->toBe([$a->id]);
+        expect($new->pluck('reported_by')->unique()->all())->toBe([$b->id]);
+    }
+    app(RecordCardSaleAction::class)->execute($b, ['mode' => 'NORMAL', 'payment_method' => 'CASH', 'lines' => [['product_id' => $t->id, 'quantity' => 1, 'unit_price' => '10']], 'request_key' => (string) Str::uuid()]);
+    $pageB = Livewire::test(CardStoreClosing::class)->assertSet('data.cash', $extra ? '1004' : '1005')->assertSet('data.stocks.'.$ti.'.quantity', $extra ? 95 : 96)->assertSet('data.stocks.'.$ci.'.quantity', 9)->call('confirmClosing')->assertHasNoErrors();
+    expect(CardStoreCount::where('kind', 'CLOSE')->latest('id')->first()->shortage_cents)->toBe(0);
+    $this->actingAs($a);
+    Livewire::test(CardStoreOpening::class)->assertSet('data.cash', $extra ? '1004' : '1005')->call('confirmOpening')->assertHasNoErrors();
+    expect(CardStoreCount::count())->toBe(5);
+    expect(CardStore::sole()->cash_balance_cents)->toBe($extra ? 100400 : 100500);
+    expect($t->stock()->first()->quantity)->toBe($extra ? 95 : 96);
+    expect($c->stock()->first()->quantity)->toBe(9);
+    expect($own->execute($a)->sum('pending_cents'))->toBe($extra ? 8600 : 7500);
+    expect($own->execute($b)->count())->toBe(0);
+    expect(EconomicIncident::count())->toBe($extra ? 5 : 3);
+})->with(['recibe exactamente lo dejado' => [false], 'detecta una diferencia nueva' => [true]]);

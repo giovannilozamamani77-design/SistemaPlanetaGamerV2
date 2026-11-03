@@ -1,0 +1,1 @@
+<section class="pg-loan-record-card"><h3>Disponible en Yape Préstamos</h3><p>Bs {{ \App\Support\Bolivianos::formatCompact($available) }}</p><p class="pg-loan-record-note">El gasto se registrará como salida de este fondo, sin modificar Cajas ni Tarjetas.</p></section>

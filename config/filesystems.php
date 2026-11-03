@@ -29,6 +29,12 @@ return [
     */
 
     'disks' => [
+        'profile_photos' => [
+            'driver' => 'local',
+            'root' => storage_path('app/private/profile-photos'),
+            'visibility' => 'private',
+            'throw' => true,
+        ],
 
         'local' => [
             'driver' => 'local',

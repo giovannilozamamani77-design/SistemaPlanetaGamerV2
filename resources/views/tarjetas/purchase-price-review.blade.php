@@ -1,0 +1,1 @@
+<div class="pg-purchase-price-review"><h3>Cambió el precio de compra</h3><p>La compra registrará lo realmente pagado. Decide si estos precios quedarán como referencia para la siguiente compra.</p>@foreach ($changes as $change)<div><strong>{{ $change['label'] }}</strong><span>Anterior: Bs {{ $change['old'] }}</span><b>Nuevo: Bs {{ $change['new'] }}</b></div>@endforeach</div>

@@ -1,0 +1,4 @@
+<section class="pg-liquidation-account-card">
+    <div><span class="pg-liquidation-eyebrow">{{ ($account->is_demo ?? false) ? 'Cuenta de demostración · No transferir' : ($account->name ?? 'Cuenta de destino') }}</span><h2>{{ $account->holder_name ?? 'Sin titular configurado' }}</h2><strong>{{ $account->destination ?? 'Sin cuenta configurada' }}</strong><p>{{ ($account->is_demo ?? false) ? 'Número e imagen de ejemplo, sin valor de pago. Sustitúyelos por los datos reales.' : 'Verifica el número y el titular antes de transferir.' }}</p></div>
+    @if ($account?->qr_path)<img src="{{ route('liquidaciones.cuenta-qr', ['account' => $account->id]) }}" alt="{{ $account->is_demo ? 'Imagen de referencia QR: demostración, no transferir' : 'QR de la cuenta de destino' }}" loading="lazy">@endif
+</section>

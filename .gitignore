@@ -28,3 +28,16 @@ _ide_helper.php
 Homestead.json
 Homestead.yaml
 Thumbs.db
+
+# Private environments, databases and local backups must never be published.
+.env.*
+!.env.example
+*.sqlite*
+*.sql
+*.sql.gz
+*.dump
+*.bak
+*.p12
+*.pfx
+*.pem
+/.agents/
