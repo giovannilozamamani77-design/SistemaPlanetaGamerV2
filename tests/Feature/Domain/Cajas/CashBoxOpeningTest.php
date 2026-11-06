@@ -6,6 +6,7 @@ use App\Domain\Cajas\Actions\ExplainOpeningDelayAction;
 use App\Domain\Cajas\Actions\OpenCashBoxAction;
 use App\Domain\Cajas\Actions\PrepareCashBoxClosingAccessAction;
 use App\Domain\Cajas\Actions\RecordCashBoxOperationAction;
+use App\Domain\Cajas\Actions\RecordCashBoxReceiptAction;
 use App\Domain\Cajas\Actions\RecordQuickCashBoxCommissionAction;
 use App\Domain\Cajas\Actions\RequestCashBoxEarlyCloseAction;
 use App\Domain\Cajas\Actions\ResumeOwnCashBoxAccessAction;
@@ -101,7 +102,7 @@ function c2Settings(CashBox $box, array $replace = []): array
     $accounts = [];
     foreach (CashBoxComponents::forType($box->type) as $code => $name) {
         $accounts[$code] = ['name' => $name, 'initial' => match ($code) {
-            'efectivo' => '2000', 'bcp' => '15000', 'yape' => '3000', default => '18000'
+            'efectivo' => '2000', 'bcp' => '15000', 'yape' => '3000', default => '15000'
         }];
     }
 
@@ -127,6 +128,28 @@ function c2Open(User $user, CashBoxAccess $access, array $replace = []): CashBox
     $balances = array_map(fn (int $cents): string => Bolivianos::format($cents), $access->expected_balances);
 
     return app(OpenCashBoxAction::class)->execute($user, $access->id, array_replace_recursive(['balances' => $balances, 'request_key' => (string) Str::uuid()], $replace));
+}
+
+/** Arrange a persisted pre-C401 receipt for legacy debt/history tests; new openings use c2Open. */
+function c2LegacyReceipt(User $user, CashBoxAccess $access, array $replace = []): CashBoxSession
+{
+    return DB::transaction(function () use ($user, $access, $replace): CashBoxSession {
+        $session = c2Open($user, $access);
+        $balances = $session->opening_balances;
+        foreach ($replace['balances'] ?? [] as $code => $value) {
+            $balances[$code] = Bolivianos::cents($value);
+        }
+        $difference = array_sum($balances) - array_sum($access->expected_balances);
+        $components = [];
+        foreach ($balances as $code => $value) {
+            $components[$code] = ['expected' => $access->expected_balances[$code], 'actual' => $value, 'difference' => $value - $access->expected_balances[$code], 'second' => null];
+        }
+        $session->update(['opening_balances' => $balances, 'current_balances' => $balances, 'comparison' => [...$session->comparison,
+            'difference_cents' => $difference, 'components' => $components, 'reason' => $replace['reason'] ?? ($difference < 0 ? 'Faltante detectado al recibir la caja.' : 'Sobrante detectado al recibir la caja.')]]);
+        app(RecordCashBoxReceiptAction::class)->execute($user, $session);
+
+        return $session->fresh();
+    });
 }
 
 function c2Workday(User $user, string $period = 'manana'): ScheduledWorkday
@@ -244,19 +267,19 @@ it('does not create a debt for redistribution with an equal total', function () 
     $this->assertDatabaseCount('economic_incidents', 0);
 });
 
-it('opens a high shortage without a second reading or manual observation', function () {
+it('rejects a high opening shortage', function () {
     $user = c2Person();
     $access = c2Access($user, c2Configured());
-    $opened = c2Open($user, $access, ['balances' => ['bcp' => '14800']]);
-    expect($opened->comparison['difference_cents'])->toBe(-20000);
-    $this->assertDatabaseHas('cash_box_receipt_discrepancies', ['difference_cents' => -20000, 'status' => 'EN_REVISION']);
-    $this->assertDatabaseCount('economic_incidents', 0);
+    expect(fn () => c2Open($user, $access, ['balances' => ['bcp' => '14800']]))->toThrow(ValidationException::class);
+    $this->assertDatabaseCount('cash_box_sessions', 0);
+    $this->assertDatabaseCount('cash_box_receipt_discrepancies', 0);
 });
 
-it('accepts the exact threshold with a reason but no extra reading', function () {
+it('rejects an opening difference even at the old threshold', function () {
     $user = c2Person();
-    $session = c2Open($user, c2Access($user, c2Configured()), ['balances' => ['bcp' => '14900'], 'reason' => 'Diferencia de recepción']);
-    expect($session->comparison['difference_cents'])->toBe(-10000);
+    expect(fn () => c2Open($user, c2Access($user, c2Configured()), ['balances' => ['bcp' => '14900'], 'reason' => 'Diferencia de recepción']))->toThrow(ValidationException::class);
+    $this->assertDatabaseCount('cash_box_sessions', 0);
+    $this->assertDatabaseCount('cash_box_receipt_discrepancies', 0);
 });
 
 it('keeps Tigo Money balances and time reference separate from BCP', function () {
@@ -393,11 +416,12 @@ it('keeps old configuration snapshots unchanged after a later closed-box update'
     expect($box->fresh()->base_capital_cents)->toBe(2100000);
 });
 
-it('accepts a surplus above the threshold without reentering balances', function () {
+it('rejects an opening surplus above the old threshold', function () {
     $user = c2Person();
     $access = c2Access($user, c2Configured());
-    $session = c2Open($user, $access, ['balances' => ['efectivo' => '2100.01']]);
-    expect($session->comparison['difference_cents'])->toBe(10001);
+    expect(fn () => c2Open($user, $access, ['balances' => ['efectivo' => '2100.01']]))->toThrow(ValidationException::class);
+    $this->assertDatabaseCount('cash_box_sessions', 0);
+    $this->assertDatabaseCount('cash_box_receipt_discrepancies', 0);
 });
 
 it('allows opening without an invented schedule or attendance', function () {
@@ -412,6 +436,12 @@ it('opens with optional cash count and compares the received total despite redis
     $user = c2Person();
     $access = c2Access($user, c2Configured());
     $data = ['balances' => ['efectivo' => '1000', 'bcp' => $bcp], 'second_balances' => ['efectivo' => '1000', 'bcp' => $bcp], 'reason' => 'Conteo manual de recepcion', 'request_key' => (string) Str::uuid()];
+    if ($difference !== 0) {
+        expect(fn () => c2Open($user, $access, $data))->toThrow(ValidationException::class);
+        $this->assertDatabaseCount('cash_box_sessions', 0);
+
+        return;
+    }
     $session = c2Open($user, $access, $data);
     expect(c2Open($user, $access, $data)->id)->toBe($session->id);
     expect($session->comparison['difference_cents'])->toBe($difference)
@@ -436,11 +466,11 @@ function c87Reception(array $handover = []): array
     return [$box, $previousUser, $previous, $incoming, c2Access($incoming, $box)];
 }
 
-it('automatically charges a net reception shortage to the previous cashier without altering capital', function () {
+it('legacy persisted receipt: automatically charges a net reception shortage to the previous cashier without altering capital', function () {
     [$box, $owner, $previous, $incoming, $access] = c87Reception();
     $data = ['balances' => ['bcp' => '14950', 'efectivo' => '2000', 'yape' => '3000'], 'request_key' => (string) Str::uuid()];
-    $session = app(OpenCashBoxAction::class)->execute($incoming, $access->id, $data);
-    expect(app(OpenCashBoxAction::class)->execute($incoming, $access->id, $data)->id)->toBe($session->id);
+    $session = c2LegacyReceipt($incoming, $access, $data);
+    DB::transaction(fn () => app(RecordCashBoxReceiptAction::class)->execute($incoming, $session));
     $case = EconomicIncident::sole();
     expect($case->user_id)->toBe($owner->id)->and($case->reported_by)->toBe($incoming->id)
         ->and($case->pending_cents)->toBe(5000)->and($case->status)->toBe('CONFIRMADA');
@@ -450,9 +480,9 @@ it('automatically charges a net reception shortage to the previous cashier witho
     $this->assertDatabaseCount('cash_box_receipt_discrepancies', 1);
 });
 
-it('keeps reception surplus separate from service commissions and liquidates it only once', function () {
+it('legacy persisted receipt: keeps reception surplus separate from service commissions and liquidates it only once', function () {
     [$box, $owner, $previous, $incoming, $access] = c87Reception();
-    $session = c2Open($incoming, $access, ['balances' => ['bcp' => '15050']]);
+    $session = c2LegacyReceipt($incoming, $access, ['balances' => ['bcp' => '15050']]);
     $this->assertDatabaseCount('economic_incidents', 0);
     $this->assertDatabaseCount('cash_box_operations', 0);
     $this->assertDatabaseHas('cash_box_receipt_discrepancies', ['cash_box_session_id' => $session->id, 'classification' => 'SOBRANTE']);
@@ -477,31 +507,31 @@ it('keeps reception surplus separate from service commissions and liquidates it 
 
 });
 
-it('does not recreate an already authorized shortage and charges only the new reception difference', function () {
+it('legacy persisted receipt: does not recreate an already authorized shortage and charges only the new reception difference', function () {
     [$box, $owner, $previous, $incoming, $access] = c87Reception(['bcp' => 1480000]);
-    $session = c2Open($incoming, $access);
+    $session = c2LegacyReceipt($incoming, $access);
     $this->assertDatabaseCount('economic_incidents', 0);
     expect($session->comparison['difference_cents'])->toBe(0);
     $session->update(['status' => 'CERRADA', 'active_slot' => null, 'closed_at' => now(), 'released_at' => now(), 'handover_balances' => $session->opening_balances]);
     $next = c2Person();
-    c2Open($next, c2Access($next, $box), ['balances' => ['bcp' => '14750']]);
+    c2LegacyReceipt($next, c2Access($next, $box), ['balances' => ['bcp' => '14750']]);
     expect(EconomicIncident::sole()->pending_cents)->toBe(5000);
     expect(EconomicIncident::sole()->user_id)->toBe($incoming->id);
 });
 
-it('rolls back both the opening and the automatic debt if the internal receipt writer fails', function () {
+it('legacy persisted receipt: rolls back both the opening and the automatic debt if the internal receipt writer fails', function () {
     [$box, $owner, $previous, $incoming, $access] = c87Reception();
     $this->mock(EconomicHistoryAudit::class)->shouldReceive('record')->once()->andThrow(new RuntimeException('Simulated interruption'));
-    expect(fn () => c2Open($incoming, $access, ['balances' => ['bcp' => '14950']]))->toThrow(RuntimeException::class);
+    expect(fn () => c2LegacyReceipt($incoming, $access, ['balances' => ['bcp' => '14950']]))->toThrow(RuntimeException::class);
     $this->assertDatabaseCount('cash_box_sessions', 1);
     $this->assertDatabaseCount('economic_incidents', 0);
     $this->assertDatabaseCount('cash_box_receipt_discrepancies', 0);
     expect($access->fresh()->cash_box_session_id)->toBeNull();
 });
 
-it('lets only the previous owner justify a reception debt and administration annul it without changing cash', function () {
+it('legacy persisted receipt: lets only the previous owner justify a reception debt and administration annul it without changing cash', function () {
     [$box, $owner, $previous, $incoming, $access] = c87Reception();
-    $session = c2Open($incoming, $access, ['balances' => ['bcp' => '14950']]);
+    $session = c2LegacyReceipt($incoming, $access, ['balances' => ['bcp' => '14950']]);
     $case = EconomicIncident::sole();
     $balances = $session->fresh()->current_balances;
     $action = app(JustifyOpeningShortageAction::class);
@@ -519,16 +549,16 @@ it('lets only the previous owner justify a reception debt and administration ann
     $this->assertDatabaseHas('economic_history_events', ['economic_incident_id' => $case->id, 'action' => 'RECEPCION_JUSTIFICADA']);
 });
 
-it('records reception cents and does not give a cashier permission to report arbitrary debts for others', function () {
+it('legacy persisted receipt: records reception cents and does not give a cashier permission to report arbitrary debts for others', function () {
     [$box, $owner, $previous, $incoming, $access] = c87Reception();
-    c2Open($incoming, $access, ['balances' => ['bcp' => '14999.90']]);
+    c2LegacyReceipt($incoming, $access, ['balances' => ['bcp' => '14999.90']]);
     expect(EconomicIncident::sole()->pending_cents)->toBe(10);
     expect(fn () => app(ReportEconomicIncidentAction::class)->execute($incoming, $owner, []))->toThrow(AuthorizationException::class);
 });
 
-it('renders the receipt justification in the owners profile and the administrative detail', function () {
+it('legacy persisted receipt: renders the receipt justification in the owners profile and the administrative detail', function () {
     [$box, $owner, $previous, $incoming, $access] = c87Reception();
-    c2Open($incoming, $access, ['balances' => ['bcp' => '14950']]);
+    c2LegacyReceipt($incoming, $access, ['balances' => ['bcp' => '14950']]);
     $case = EconomicIncident::sole();
     Filament::setCurrentPanel(Filament::getPanel('inicio'));
     $this->actingAs($owner);
@@ -555,9 +585,9 @@ it('does not create reception debt for an exact or redistributed authorized hand
     'redistributed' => [['bcp' => '14000', 'efectivo' => '3000', 'yape' => '3000']],
 ]);
 
-it('attributes reception to the prior session even when the same cashier returns', function () {
+it('legacy persisted receipt: attributes reception to the prior session even when the same cashier returns', function () {
     [$box, $owner, $previous] = c87Reception();
-    $session = c2Open($owner, c2Access($owner, $box), ['balances' => ['bcp' => '14950']]);
+    $session = c2LegacyReceipt($owner, c2Access($owner, $box), ['balances' => ['bcp' => '14950']]);
     $case = EconomicIncident::sole();
     expect($case->user_id)->toBe($owner->id)->and($case->policy_snapshot['previous_session_id'])->toBe($previous->id);
     expect($session->previous_session_id)->toBe($previous->id);
@@ -597,9 +627,9 @@ it('rejects an incoherent or invalid optional opening count without recording an
     'unknown denomination' => [['quantities' => ['fake' => '20']]],
 ]);
 
-it('C102 shows an opening shortage separately from the previous cashiers closing and identifies who detected it', function () {
+it('legacy persisted receipt: C102 shows an opening shortage separately from the previous cashiers closing and identifies who detected it', function () {
     [$box,$owner,$previous,$incoming,$access] = c87Reception();
-    c2Open($incoming, $access, ['balances' => ['bcp' => '14950']]);
+    c2LegacyReceipt($incoming, $access, ['balances' => ['bcp' => '14950']]);
     $case = EconomicIncident::sole();
     $before = $case->getAttributes();
     Filament::setCurrentPanel(Filament::getPanel('inicio'));

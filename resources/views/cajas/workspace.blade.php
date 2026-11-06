@@ -132,6 +132,7 @@
 
                 @if ($workspace['receipt_classification'] === 'FALTANTE')<p>El faltante de recepción se registró a la titular anterior. Puedes continuar operando.</p>
                 @elseif ($workspace['receipt_classification'] === 'SOBRANTE')<p>Sobrante de apertura: <strong>Bs {{ \App\Support\Bolivianos::format($workspace['opening_surplus']) }}</strong>. Incluido una sola vez para liquidación; el capital no cambia.</p>
+                @elseif ($workspace['receipt_classification'] === 'RECTIFICADO')<p>El sobrante de la apertura inicial fue rectificado por Administración. Se conservan los saldos y las comisiones reales.</p>
                 @elseif ($workspace['has_observation'])<p>La diferencia de recepción quedó registrada sin atribuir una deuda a una persona desconocida.</p>@endif
 
             </div></section>

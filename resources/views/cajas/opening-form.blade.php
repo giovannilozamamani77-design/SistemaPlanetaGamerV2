@@ -1,6 +1,6 @@
-<x-filament::section :heading="$workspace['box']" :description="$workspace['first_count'] ? 'Pendiente de contar: ingresa los saldos de la primera apertura.' : 'Verifica los saldos y ajústalos si es necesario.'">
+<x-filament::section :heading="$workspace['box']" :description="$workspace['first_count'] ? 'Completa los saldos hasta alcanzar exactamente el capital configurado.' : 'El total debe coincidir exactamente con la entrega del cierre anterior.'">
     @include('cajas.previous-handover', ['previous' => $this->previousHandover])
-    <form wire:submit="confirmOpening" class="space-y-5">
+    <div class="space-y-5" x-on:keydown.enter.prevent.stop>
         <h2 class="text-sm font-semibold">Saldos de apertura</h2>
         <div class="grid grid-cols-1 items-start gap-5 lg:grid-cols-3">
             <div class="grid grid-cols-1 gap-4 md:grid-cols-2 lg:col-span-2">
@@ -23,7 +23,8 @@
                 @endforeach
             </div>
             <div class="rounded-xl bg-primary-500/10 p-5 ring-1 ring-primary-500/30">
-                <h2 class="text-sm font-semibold">Total</h2>
+                <h2 class="text-sm font-semibold">Total contado</h2>
+                <p class="mt-2 text-sm">Total requerido: <strong>Bs {{ \App\Support\Bolivianos::format($workspace['opening_required_total']) }}</strong></p>
                 <p class="mt-2 text-3xl font-bold text-primary-600 dark:text-primary-400" aria-live="polite">
                     {{ $this->openingPreview['valid'] ? 'Bs '.\App\Support\Bolivianos::formatCompact($this->openingPreview['total_cents']) : 'Revisa los importes' }}
                 </p>
@@ -33,8 +34,8 @@
             <p class="text-sm text-danger-600" role="alert">{{ $errors->first() }}</p>
         @endif
         <div class="flex flex-wrap items-center gap-3">
-            <x-filament::button type="submit" wire:loading.attr="disabled" wire:target="confirmOpening">Abrir mi caja</x-filament::button>
+            <x-filament::button type="button" wire:click="confirmOpening" x-on:keydown.enter.prevent.stop :disabled="! $this->openingPreview['valid'] || $this->openingPreview['total_cents'] !== $workspace['opening_required_total']" wire:loading.attr="disabled" wire:target="confirmOpening">Abrir mi caja</x-filament::button>
             {{ $this->salirDeVistaAction }}
         </div>
-    </form>
+    </div>
 </x-filament::section>

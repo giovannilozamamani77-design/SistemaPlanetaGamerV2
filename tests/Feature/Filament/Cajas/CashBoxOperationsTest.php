@@ -174,8 +174,9 @@ it('shows receipt observations to administration without allowing cashier access
     $box = c2uiBox();
     $cashier = c2uiUser();
     $access = app(StartCashBoxAccessAction::class)->execute($cashier, $box, '1234', (string) Str::uuid());
-    app(OpenCashBoxAction::class)->execute($cashier, $access->id, ['balances' => ['bcp' => '14950', 'efectivo' => '2000', 'yape' => '3000'],
-        'reason' => 'Diferencia contada al recibir', 'request_key' => (string) Str::uuid()]);
+    $session = app(OpenCashBoxAction::class)->execute($cashier, $access->id, ['balances' => ['bcp' => '15000', 'efectivo' => '2000', 'yape' => '3000'], 'request_key' => (string) Str::uuid()]);
+    // A historical observation remains visible even though new unequal openings are blocked.
+    DB::table('cash_box_receipt_discrepancies')->insert(['cash_box_session_id' => $session->id, 'reported_by' => $cashier->id, 'difference_cents' => -5000, 'comparison' => '{}', 'reason' => 'Diferencia contada al recibir', 'status' => 'EN_REVISION', 'classification' => 'SIN_CUSTODIO', 'created_at' => now()]);
     $this->actingAs(c2uiUser('administrador'));
     $page = Livewire::test(ListCashBoxes::class)->mountTableAction('recepciones', $box);
     $instance = $page->instance();

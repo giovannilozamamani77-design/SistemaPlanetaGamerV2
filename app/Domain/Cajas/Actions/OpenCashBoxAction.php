@@ -3,6 +3,7 @@
 namespace App\Domain\Cajas\Actions;
 
 use App\Domain\Arqueos\Calculators\CashCountCalculator;
+use App\Domain\Cajas\Contracts\ReservedCashBoxFunds;
 use App\Domain\Cajas\Data\CashBoxComponents;
 use App\Domain\Cajas\Models\CashBox;
 use App\Domain\Cajas\Models\CashBoxAccess;
@@ -122,7 +123,15 @@ class OpenCashBoxAction
                 throw ValidationException::withMessages(['reason' => 'La entrega anterior cambió. Ingresa nuevamente para recibir los saldos vigentes.']);
             }
             $firstCount = ! $previous && $config->first_count_pending;
+            $requiredTotal = $previous ? array_sum($access->expected_balances)
+                : app(CashBoxOperatingCapital::class)->amount($box->id, $config->base_capital_cents) + array_sum(app(ReservedCashBoxFunds::class)->forBox($box->id));
+            if (array_sum($balances) !== $requiredTotal) {
+                throw ValidationException::withMessages(['opening_total' => 'No se puede abrir: el total debe ser exactamente Bs '.Bolivianos::format($requiredTotal).($previous ? ', según la entrega del cierre anterior.' : ', según el capital configurado.').' Completa o corrige los saldos antes de abrir.']);
+            }
             $expected = $firstCount ? $balances : $access->expected_balances;
+            if (array_sum($balances) !== array_sum($expected)) {
+                throw ValidationException::withMessages(['opening_total' => 'La referencia de apertura no coincide con el capital configurado. Administración debe revisar la configuración antes de abrir.']);
+            }
             $difference = array_sum($balances) - array_sum($expected);
             if ($difference !== 0 && $reason === '') {
                 $reason = $difference < 0 ? 'Faltante detectado al recibir la caja.' : 'Sobrante detectado al recibir la caja.';
