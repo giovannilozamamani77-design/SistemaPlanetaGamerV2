@@ -15,10 +15,6 @@
                     </div>
                     </div>
                 </div>
-                <div class="pg-card-sale-guide">
-                    <p>Usa <strong>+</strong> y <strong>−</strong> o escribe la cantidad. Revisa el resumen antes de registrar.</p>
-                    <details><summary>Venta por mayor y atajo de teclado</summary><p>Por mayor: mínimo {{ $summary['wholesale_min_quantity'] }} unidades combinadas. Al cambiar de modo se actualizan los precios y se retiran los cortes no habilitados. <strong>Enter registra inmediatamente</strong> el corte cuya cantidad estás escribiendo.</p></details>
-                </div>
                 @if (($data['mode'] ?? 'NORMAL') === 'WHOLESALE')
                     <section class="pg-recharge-compact" aria-label="Recargas mayoristas Entel">
                         <header>@include('tarjetas.company-logo', ['company' => 'ENTEL', 'logoClass' => 'pg-sale-company-logo'])<div><small>VENTA DIGITAL</small><h2>Recargas mayoristas Entel</h2></div></header>

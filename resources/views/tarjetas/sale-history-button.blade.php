@@ -1,1 +1,1 @@
-<x-filament::icon-button type="button" icon="heroicon-o-clock" color="gray" label="Historial de ventas" tooltip="Historial de ventas" x-on:click="$dispatch('open-modal', { id: 'card-sale-history' })" />
+<x-filament::button type="button" icon="heroicon-o-clock" color="gray" aria-label="Historial de ventas" x-on:click="$dispatch('open-modal', { id: 'card-sale-history' })">Historial de ventas</x-filament::button>

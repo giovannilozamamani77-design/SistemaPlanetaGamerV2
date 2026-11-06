@@ -373,12 +373,7 @@
 .pg-sale-workspace .pg-sale-select-header { position: static; padding: 0; gap: 1rem; flex-wrap: wrap; align-items: flex-start; }
 .pg-sale-workspace .pg-sale-select-header h2 { margin-top: .3rem; font-size: 1.2rem; line-height: 1.4; }
 .pg-sale-workspace .pg-sale-select-actions { display: flex; align-items: center; flex-wrap: wrap; gap: .75rem; }
-.pg-card-sale-guide { margin: 1rem 0 1.25rem; padding: .8rem 1rem; border: 1px solid var(--pg-border); border-radius: .65rem; color: var(--pg-muted); font-size: .85rem; line-height: 1.6; }
-.pg-card-sale-guide strong { color: var(--pg-text); }
-.pg-card-sale-guide details { margin-top: .35rem; }
-.pg-card-sale-guide summary { cursor: pointer; font-size: .75rem; }
-.pg-card-sale-guide details p { margin-top: .4rem; }
-.pg-sale-workspace .pg-sale-company-list { display: grid; grid-template-columns: minmax(0, 1fr); gap: 1rem; }
+.pg-sale-workspace .pg-sale-company-list { display: grid; grid-template-columns: minmax(0, 1fr); gap: 1rem; margin-top: 1rem; }
 .pg-sale-workspace .pg-sale-company { margin: 0; border-radius: .75rem; min-width: 0; }
 .pg-sale-workspace .pg-sale-company > header { padding: .85rem 1rem; }
 .pg-sale-workspace .pg-sale-cuts { grid-template-columns: repeat(auto-fill, minmax(min(100%, 10rem), 1fr)); padding: 1rem; gap: .85rem; }
