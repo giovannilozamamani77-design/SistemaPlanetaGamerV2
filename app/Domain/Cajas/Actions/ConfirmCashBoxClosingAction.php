@@ -7,6 +7,7 @@ use App\Domain\Cajas\Models\CashBoxAccess;
 use App\Domain\Cajas\Models\CashBoxAudit;
 use App\Domain\Cajas\Models\CashBoxClose;
 use App\Domain\Cajas\Models\CashBoxSession;
+use App\Domain\Cajas\Services\CashBoxScheduleSafety;
 use App\Domain\Cajas\Services\ClosingConfirmationRules;
 use App\Domain\ControlHorario\Actions\CaptureCashBoxEarlyWorkAction;
 use App\Domain\ControlHorario\Actions\ProcessCashBoxScheduleEventAction;
@@ -79,12 +80,7 @@ class ConfirmCashBoxClosingAction
                         'fixed_reading' => $r['counters']['counters']['fixed']['current'], 'fixed_delta' => $r['counters']['counters']['fixed']['delta'],
                         'baseline' => $r['counters']['counters']['general']['reference'] === null, 'created_at' => $now]);
                 }
-                if ($r['early'] && $r['earlyWorkdayId']) {
-                    $access = CashBoxAccess::where('cash_box_session_id', $session->id)->where('user_id', $user->id)->oldest('id')->firstOrFail();
-                    CashBoxScheduleEvent::firstOrCreate(['source_key' => 'closing:'.$close->id],
-                        ['kind' => 'CLOSING', 'user_id' => $user->id, 'pin_audit_id' => $access->pin_audit_id, 'access_id' => $access->id,
-                            'scheduled_workday_id' => $r['earlyWorkdayId'], 'occurred_at' => $now]);
-                }
+
                 $before = ['status' => $session->status, 'revision' => $session->revision, 'balances' => $session->current_balances];
                 $session->update(['status' => $shortage ? 'CIERRE_REGISTRADO' : 'CERRADA', 'closed_at' => $now,
                     'active_slot' => $shortage ? 1 : null, 'released_at' => $shortage ? null : $now,
@@ -95,7 +91,6 @@ class ConfirmCashBoxClosingAction
                     $close->release_reason = 'Continuidad automática: cierre sin faltante y liquidación cumplida.';
                 }
                 $close->save();
-                app(CaptureCashBoxEarlyWorkAction::class)->closing($close, $session);
                 CashBoxAudit::create(['cash_box_id' => $session->cash_box_id, 'actor_user_id' => $user->id, 'request_key' => $data['request_key'],
                     'action' => 'CIERRE_CONFIRMADO', 'payload_hash' => hash('sha256', json_encode($data, JSON_THROW_ON_ERROR)), 'before' => $before,
                     'after' => ['close_id' => $close->id, 'status' => $session->status, 'balances' => $session->current_balances, 'liquidated_cents' => $close->liquidated_cents],
@@ -110,13 +105,26 @@ class ConfirmCashBoxClosingAction
             throw ValidationException::withMessages(['closing' => 'La solicitud o referencia ya fue registrada. Revisa el historial antes de repetirla.']);
         }
 
-        $event = CashBoxScheduleEvent::where('source_key', 'closing:'.$id)->first();
-        if ($event) {
-            app(ProcessCashBoxScheduleEventAction::class)->safely($event->id);
-        }
+        app(CashBoxScheduleSafety::class)->attempt(function () use ($id): void {
+            $close = CashBoxClose::findOrFail($id);
+            if ($close->shift_snapshot['schedule_early_approved'] ?? false) {
+                $access = CashBoxAccess::where('cash_box_session_id', $close->cash_box_session_id)->where('user_id', $close->user_id)->oldest('id')->firstOrFail();
+                CashBoxScheduleEvent::firstOrCreate(['source_key' => 'closing:'.$close->id],
+                    ['kind' => 'CLOSING', 'user_id' => $close->user_id, 'pin_audit_id' => $access->pin_audit_id, 'access_id' => $access->id,
+                        'scheduled_workday_id' => $close->shift_snapshot['schedule_workday_id'], 'occurred_at' => $close->created_at]);
+            }
+            $event = CashBoxScheduleEvent::where('source_key', 'closing:'.$id)->first();
+            if ($event) {
+                app(ProcessCashBoxScheduleEventAction::class)->safely($event->id);
+            }
+
+        });
 
         $result = CashBoxClose::findOrFail($id);
-        app(CaptureCashBoxEarlyWorkAction::class)->safelyForSession($result->cash_box_session_id);
+        app(CashBoxScheduleSafety::class)->attempt(function () use ($result): void {
+            app(CaptureCashBoxEarlyWorkAction::class)->closing($result, CashBoxSession::findOrFail($result->cash_box_session_id));
+            app(CaptureCashBoxEarlyWorkAction::class)->safelyForSession($result->cash_box_session_id);
+        });
 
         return $result;
     }

@@ -269,3 +269,51 @@ it('C130 retries a section after another section changed without overwriting it 
     expect(fn () => $action->execute($admin, 'boxes', [...$boxes, 'request_key' => (string) Str::uuid()]))->toThrow(ValidationException::class);
     expect(PersonnelRuleVersion::count())->toBe(2);
 });
+
+it('C392 shows each existing box and applies control only to explicit selections', function () {
+    [$admin] = c109People();
+    $one = CashBox::factory()->create(['name' => 'Caja Blanca']);
+    $two = CashBox::factory()->create(['name' => 'Caja Negra']);
+    $this->actingAs($admin);
+    $page = Livewire::test(ScheduleSettings::class)->assertSee('Caja Blanca')->assertSee('Caja Negra')->assertSee('Sin control');
+    $page->mountAction('configureBoxes')->assertMountedActionModalDontSee('Aplicar a todas las cajas')->call('unmountAction');
+    $page->callAction('configureBoxes', data: ['schedule_cash_box_ids' => [$one->id], 'reason' => 'Solo caja blanca', 'pin' => '1234'])->assertHasNoActionErrors();
+    $page->callAction('configureControl', data: ['cash_box_controls_enabled' => true, 'reason' => 'Activar selección explícita', 'pin' => '1234'])->assertHasNoActionErrors();
+    expect(app(ScheduleConfiguration::class)->allows($one->id))->toBeTrue()->and(app(ScheduleConfiguration::class)->allows($two->id))->toBeFalse();
+    $new = CashBox::factory()->create(['name' => 'Caja Nueva']);
+    expect(app(ScheduleConfiguration::class)->allows($new->id))->toBeFalse();
+    expect(app(PersonnelRules::class)->current()['schedule_cash_box_ids'])->toBe([$one->id]);
+    $this->assertDatabaseCount('attendances', 0);
+    $this->assertDatabaseCount('cash_box_sessions', 0);
+});
+
+it('C392 activating control without selecting boxes does not silently include every box', function () {
+    [$admin] = c109People();
+    $box = CashBox::factory()->create();
+    $this->actingAs($admin);
+    Livewire::test(ScheduleSettings::class)->callAction('configureControl', data: ['cash_box_controls_enabled' => true, 'reason' => 'Activación sin selección', 'pin' => '1234'])->assertHasNoActionErrors();
+    expect(app(ScheduleConfiguration::class)->allows($box->id))->toBeFalse();
+    expect(app(PersonnelRules::class)->current()['schedule_cash_box_ids'])->toBe([]);
+});
+
+it('C392 keeps box selection intact when retrying a control change after another selection', function () {
+    [$admin] = c109People();
+    $one = CashBox::factory()->create();
+    $two = CashBox::factory()->create();
+    $action = app(SaveScheduleSectionAction::class);
+    $action->execute($admin, 'boxes', ['schedule_cash_box_ids' => [$one->id], 'expected_version_id' => 0, 'reason' => 'Primera selección', 'pin' => '1234', 'request_key' => (string) Str::uuid()]);
+    $data = ['cash_box_controls_enabled' => true, 'expected_version_id' => app(PersonnelRules::class)->current()['version_id'], 'reason' => 'Activar control seleccionado', 'pin' => '1234', 'request_key' => (string) Str::uuid()];
+    $first = $action->execute($admin, 'control', $data);
+    $action->execute($admin, 'boxes', ['schedule_cash_box_ids' => [$two->id], 'expected_version_id' => $first->id, 'reason' => 'Cambiar selección', 'pin' => '1234', 'request_key' => (string) Str::uuid()]);
+    expect($action->execute($admin, 'control', $data)->id)->toBe($first->id);
+    expect(app(PersonnelRules::class)->current()['schedule_cash_box_ids'])->toBe([$two->id]);
+});
+
+it('C392 rejects implicit all-box activation and an unknown selection without saving', function () {
+    [$admin] = c109People();
+    $data = ['expected_version_id' => 0, 'reason' => 'Selección inválida', 'pin' => '1234', 'request_key' => (string) Str::uuid()];
+    $action = app(SaveScheduleSectionAction::class);
+    expect(fn () => $action->execute($admin, 'boxes', $data + ['all_boxes' => true]))->toThrow(ValidationException::class);
+    expect(fn () => $action->execute($admin, 'boxes', $data + ['schedule_cash_box_ids' => [999999]]))->toThrow(ValidationException::class);
+    expect(PersonnelRuleVersion::count())->toBe(0);
+});

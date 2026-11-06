@@ -50,3 +50,13 @@
 .pg-delay-minutes small { font-size: 1.25rem; }
 .pg-delay-breakdown { margin-bottom: .75rem; display: grid; gap: .3rem; }
 .pg-delay-notice p { font-size: .875rem; }
+
+.pg-schedule-box-list { display: grid; gap: .6rem; margin-top: .5rem; }
+.pg-schedule-box-list li { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: .5rem; padding: .65rem; border: 1px solid var(--pg-border); border-radius: .6rem; }
+.pg-schedule-box-list li > div { display: grid; gap: .2rem; min-width: 0; }
+.pg-schedule-box-list b { font-size: .8rem; overflow-wrap: anywhere; }
+.pg-schedule-box-list small { font-size: .7rem; color: var(--pg-muted); }
+.pg-schedule-box-details { font-size: .75rem; color: var(--pg-muted); }
+.pg-schedule-box-details > summary { cursor: pointer; width: fit-content; padding: .25rem 0; }
+.pg-schedule-box-details > summary:hover { color: var(--pg-text); }
+.pg-schedule-box-details > summary:focus-visible { outline: 2px solid var(--pg-selected-text); outline-offset: 3px; border-radius: .2rem; }

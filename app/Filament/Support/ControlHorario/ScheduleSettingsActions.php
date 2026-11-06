@@ -25,7 +25,7 @@ class ScheduleSettingsActions
             ->fillForm(function (): array {
                 $state = app(ScheduleSettingsQuery::class)->execute(auth()->user());
 
-                return [...$state['settings'], 'all_boxes' => $state['settings']['schedule_cash_box_ids'] === null,
+                return [...$state['settings'], 'all_boxes' => false,
                     'expected_version_id' => $state['version_id'], 'request_key' => (string) Str::uuid(), 'reason' => '', 'pin' => ''];
             })
             ->schema([

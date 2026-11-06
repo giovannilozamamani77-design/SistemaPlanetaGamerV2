@@ -2,10 +2,11 @@
 
 namespace App\Filament\Resources\Usuarios\Users\Pages;
 
-use App\Domain\Usuarios\Actions\SaveUserAction;
+use App\Filament\Resources\Usuarios\Users\Schemas\UserForm;
 use App\Filament\Resources\Usuarios\Users\UserResource;
 use App\Filament\Widgets\Usuarios\UsersOverview;
 use App\Models\User;
+use Filament\Actions\Action;
 use Filament\Actions\CreateAction;
 use Filament\Resources\Pages\ListRecords;
 
@@ -29,7 +30,7 @@ class ListUsers extends ListRecords
             CreateAction::make()->label('Nuevo usuario')->modal()
                 ->modalHeading('Crear usuario')->modalDescription('Completa sus datos y elige un rol previamente configurado.')
                 ->modalSubmitActionLabel('Crear usuario')->modalCancelActionLabel('Cancelar')->modalWidth('2xl')->stickyModalHeader()->stickyModalFooter()->createAnother(false)
-                ->using(fn (array $data): User => app(SaveUserAction::class)->execute(auth()->user(), array_replace(['permissions' => [], 'restrictions' => []], $data))),
+                ->using(fn (array $data, Action $action): User => UserForm::save(auth()->user(), array_replace(['permissions' => [], 'restrictions' => []], $data), statePath: 'mountedActions.'.$action->getNestingIndex().'.data')),
         ];
     }
 }

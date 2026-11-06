@@ -2,16 +2,41 @@
 
 namespace App\Filament\Resources\Usuarios\Users\Schemas;
 
+use App\Domain\Usuarios\Actions\SaveUserAction;
+use App\Domain\Usuarios\Support\Username;
+use App\Models\User;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\TextInput;
 use Filament\Forms\Components\Toggle;
 use Filament\Schemas\Components\Section;
+use Filament\Schemas\Components\Utilities\Get;
+use Filament\Schemas\Components\Utilities\Set;
 use Filament\Schemas\Schema;
+use Illuminate\Validation\ValidationException;
+use SensitiveParameter;
 use Spatie\Permission\Models\Permission;
 use Spatie\Permission\Models\Role;
 
 class UserForm
 {
+    /** @param array<string, mixed> $data */
+    public static function save(User $actor, #[SensitiveParameter] array $data, ?User $record = null, string $statePath = 'data'): User
+    {
+        try {
+            return app(SaveUserAction::class)->execute($actor, $data, $record);
+        } catch (ValidationException $error) {
+            $errors = $error->errors();
+            foreach (['username', 'data.username'] as $key) {
+                if (array_key_exists($key, $errors)) {
+                    $messages = $errors[$key];
+                    unset($errors[$key]);
+                    $errors[$statePath.'.username'] = $messages;
+                }
+            }
+            throw ValidationException::withMessages($errors);
+        }
+    }
+
     public static function configure(Schema $schema): Schema
     {
         $permissionOptions = fn (): array => Permission::where('guard_name', 'web')->orderBy('name')->pluck('name', 'name')->all();
@@ -19,7 +44,21 @@ class UserForm
         return $schema->components([
             Section::make('Datos de la cuenta')->description('Información necesaria para ingresar al sistema.')
                 ->icon('heroicon-o-user-circle')->columns(2)->columnSpanFull()->schema([
-                    TextInput::make('name')->label('Nombre completo')->required()->maxLength(255)->columnSpanFull(),
+                    TextInput::make('name')->label('Nombre completo')->required()->maxLength(255)->columnSpanFull()
+                        ->live(onBlur: true)->afterStateUpdated(function (?string $state, Get $get, Set $set, string $operation): void {
+                            if ($operation === 'create' && blank($get('username'))) {
+                                $set('username', Username::availableFromName($state ?? ''));
+                            }
+                        }),
+                    TextInput::make('username')->label('Nombre de usuario')->maxLength(64)->required()
+                        ->mutateStateForValidationUsing(fn (?string $state, Get $get, ?User $record): ?string => filled($state) ? trim($state) : ($record?->username ?? Username::availableFromName($get('name') ?? '')))
+                        ->rules([fn (?User $record) => function (string $attribute, mixed $value, \Closure $fail) use ($record): void {
+                            if (User::where('username_key', Username::key($value))->when($record, fn ($query) => $query->where('id', '!=', $record->id))->exists()) {
+                                $fail('Este nombre de usuario ya existe. Asigna uno diferente.');
+                            }
+                        }])
+                        ->regex('/\A[A-Za-z][A-Za-z0-9_.-]{0,63}\z/')
+                        ->helperText('Se genera desde el primer nombre. Si ya existe, añade 1, 2, 3… Puedes editarlo; debe ser único.'),
                     TextInput::make('email')->label('Correo electrónico')->email()->required()->unique(ignoreRecord: true),
                     TextInput::make('password')->label('Contraseña')->password()->revealable()->minLength(8)
                         ->required(fn (string $operation): bool => $operation === 'create')

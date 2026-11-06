@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use App\Domain\Usuarios\Models\ServiceRating;
+use App\Domain\Usuarios\Support\Username;
 use Database\Factories\UserFactory;
 use Filament\Models\Contracts\FilamentUser;
 use Filament\Models\Contracts\HasAvatar;
@@ -14,10 +15,11 @@ use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
+use Illuminate\Validation\ValidationException;
 use Spatie\Permission\Models\Permission;
 use Spatie\Permission\Traits\HasRoles;
 
-#[Fillable(['name', 'email', 'password'])]
+#[Fillable(['name', 'email', 'password', 'username'])]
 #[Hidden(['password', 'remember_token', 'pin_hash', 'profile_photo_path'])]
 class User extends Authenticatable implements FilamentUser, HasAvatar
 {
@@ -27,6 +29,22 @@ class User extends Authenticatable implements FilamentUser, HasAvatar
     protected string $guard_name = 'web';
 
     protected $attributes = ['is_active' => true];
+
+    protected static function booted(): void
+    {
+        static::saving(function (User $user): void {
+            if (! $user->exists && blank($user->username)) {
+                $user->username = Username::availableFromName($user->name);
+            }
+            if ($user->isDirty('username') || ! $user->exists) {
+                $user->username = filled($user->username) ? trim($user->username) : null;
+                if ($user->username !== null && ! preg_match('/\A[A-Za-z][A-Za-z0-9_.-]{0,63}\z/', $user->username)) {
+                    throw ValidationException::withMessages(['username' => 'Usa letras, números, punto, guion o guion bajo; comienza con una letra.']);
+                }
+                $user->username_key = Username::key($user->username);
+            }
+        });
+    }
 
     public function getFilamentAvatarUrl(): ?string
     {

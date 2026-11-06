@@ -9,6 +9,7 @@ use App\Domain\Cajas\Models\CashBoxAccess;
 use App\Domain\Cajas\Models\CashBoxConfiguration;
 use App\Domain\Cajas\Models\CashBoxSession;
 use App\Domain\Cajas\Queries\CashBoxOperatingCapital;
+use App\Domain\Cajas\Services\CashBoxScheduleSafety;
 use App\Domain\Configuraciones\Queries\PersonnelRules;
 use App\Domain\ControlHorario\Actions\ProcessCashBoxScheduleEventAction;
 use App\Domain\ControlHorario\Models\CashBoxScheduleEvent;
@@ -69,7 +70,8 @@ class OpenCashBoxAction
         }
         $hash = hash('sha256', json_encode($payload, JSON_THROW_ON_ERROR));
 
-        $session = DB::transaction(function () use ($user, $access, $v, $balances, $second, $reason, $hash, $count): CashBoxSession {
+        $captureSchedule = app(CashBoxScheduleSafety::class)->attempt(fn (): bool => app(ScheduleConfiguration::class)->allows($access->cash_box_id), false);
+        $session = DB::transaction(function () use ($user, $access, $v, $balances, $second, $reason, $hash, $count, $captureSchedule): CashBoxSession {
             $priorCustody = CashBoxSession::where('cash_box_id', $access->cash_box_id)->latest('id')->first();
             $users = User::whereIn('id', array_unique(array_filter([$user->id, $priorCustody?->user_id])))->orderBy('id')->lockForUpdate()->get()->keyBy('id');
             $fresh = $users[$user->id];
@@ -137,6 +139,7 @@ class OpenCashBoxAction
             $comparison = ['initial_count' => $firstCount, 'difference_cents' => $difference, 'threshold_cents' => $threshold, 'components' => $components, 'reason' => $reason,
                 'redistribution_only' => $difference === 0 && $balances !== $expected,
                 'count_details' => ['method' => $count === null ? 'MANUAL' : 'ARQUEO', 'cash_count' => $count]];
+            $comparison['schedule_capture_requested'] = $captureSchedule;
             $session = CashBoxSession::create(['cash_box_id' => $box->id, 'user_id' => $user->id, 'configuration_id' => $config->id,
                 'previous_session_id' => $previous?->id, 'scheduled_workday_id' => $access->scheduled_workday_id,
                 'status' => 'ABIERTA', 'active_slot' => 1, 'base_capital_cents' => $config->base_capital_cents, 'operating_capital_cents' => app(CashBoxOperatingCapital::class)->amount($box->id, $config->base_capital_cents),
@@ -146,22 +149,25 @@ class OpenCashBoxAction
             DB::table('cash_box_session_events')->insert(['cash_box_session_id' => $session->id, 'actor_user_id' => $user->id,
                 'access_id' => $access->id, 'action' => 'ABIERTA', 'created_at' => $now]);
             app(RecordCashBoxReceiptAction::class)->execute($fresh, $session);
-            if (app(ScheduleConfiguration::class)->allows($access->cash_box_id) && CashBoxScheduleEvent::where('source_key', 'pin:'.$user->id.':'.$access->request_key)->where('pin_audit_id', $access->pin_audit_id)->exists()) {
-                CashBoxScheduleEvent::create(['source_key' => 'opening:'.$session->id, 'kind' => 'OPENING',
-                    'user_id' => $user->id, 'pin_audit_id' => $access->pin_audit_id, 'access_id' => $access->id,
-                    'cash_box_session_id' => $session->id, 'family' => $box->family(), 'occurred_at' => $now]);
-            }
 
             app(RecordCashBoxTelegramNoticeAction::class)->opening($session->id);
 
             return $session;
         });
-        if (app(ScheduleConfiguration::class)->allows($access->cash_box_id)) {
-            $eventId = CashBoxScheduleEvent::where('cash_box_session_id', $session->id)->value('id');
-            if ($eventId) {
-                app(ProcessCashBoxScheduleEventAction::class)->safely($eventId);
+        app(CashBoxScheduleSafety::class)->attempt(function () use ($access, $session): void {
+            if (($session->comparison['schedule_capture_requested'] ?? false) && app(ScheduleConfiguration::class)->allows($access->cash_box_id)) {
+                CashBoxScheduleEvent::firstOrCreate(['source_key' => 'pin:'.$session->user_id.':'.$access->request_key],
+                    ['user_id' => $session->user_id, 'kind' => 'PIN', 'pin_audit_id' => $access->pin_audit_id, 'occurred_at' => $access->verified_at]);
+                CashBoxScheduleEvent::firstOrCreate(['source_key' => 'opening:'.$session->id],
+                    ['user_id' => $session->user_id, 'kind' => 'OPENING', 'pin_audit_id' => $access->pin_audit_id, 'access_id' => $access->id,
+                        'cash_box_session_id' => $session->id, 'family' => CashBox::findOrFail($session->cash_box_id)->family(), 'occurred_at' => $session->opened_at]);
+                $eventId = CashBoxScheduleEvent::where('cash_box_session_id', $session->id)->value('id');
+                if ($eventId) {
+                    app(ProcessCashBoxScheduleEventAction::class)->safely($eventId);
+                }
             }
-        }
+
+        });
 
         return $session->fresh();
     }

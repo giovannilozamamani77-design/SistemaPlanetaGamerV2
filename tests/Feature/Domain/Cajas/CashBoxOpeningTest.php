@@ -1813,3 +1813,31 @@ it('C136 authorizes a dated coverage from the administrative modal without chang
         ->and($new->created_by)->toBe($admin->id)
         ->and(RecurringWorkShift::count())->toBe(2);
 });
+
+it('C394 permits access and opening when schedule event storage fails', function () {
+    config(['cajas.schedule_controls_enabled' => true]);
+    $box = c2Configured();
+    $user = c2Person();
+    DB::statement("CREATE TRIGGER fail_schedule_source BEFORE INSERT ON cash_box_schedule_events BEGIN SELECT RAISE(ABORT, 'schedule unavailable'); END");
+    $access = c2Access($user, $box);
+    $session = c2Open($user, $access);
+    expect($session->status)->toBe('ABIERTA')->and($session->current_balances)->toBe($session->opening_balances);
+    $this->assertDatabaseCount('cash_box_sessions', 1);
+});
+
+it('C394 rolls back only the failed schedule savepoint and keeps financial opening', function () {
+    config(['cajas.schedule_controls_enabled' => true]);
+    $box = c2Configured();
+    $user = c2Person();
+    $access = c2Access($user, $box);
+    DB::statement("CREATE TRIGGER fail_opening_schedule AFTER INSERT ON cash_box_schedule_events WHEN NEW.kind = 'OPENING' BEGIN SELECT RAISE(FAIL, 'schedule source unavailable'); END");
+    $key = (string) Str::uuid();
+    $session = c2Open($user, $access, ['request_key' => $key]);
+    expect($session->status)->toBe('ABIERTA');
+    expect(CashBoxScheduleEvent::where('source_key', 'opening:'.$session->id)->exists())->toBeFalse();
+    expect($access->fresh()->cash_box_session_id)->toBe($session->id);
+    DB::statement('DROP TRIGGER fail_opening_schedule');
+    expect(c2Open($user, $access, ['request_key' => $key])->id)->toBe($session->id);
+    expect(CashBoxScheduleEvent::where('source_key', 'opening:'.$session->id)->sole()->occurred_at->equalTo($session->opened_at))->toBeTrue();
+    $this->assertDatabaseCount('cash_box_sessions', 1);
+});

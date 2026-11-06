@@ -3,6 +3,7 @@
 namespace App\Domain\Cajas\Queries;
 
 use App\Domain\Cajas\Models\CashBoxSession;
+use App\Domain\Cajas\Services\CashBoxScheduleSafety;
 use App\Domain\ControlHorario\Models\TimeHistoryEvent;
 use App\Domain\ControlHorario\Models\TimeIncident;
 use App\Domain\ControlHorario\Queries\ScheduleConfiguration;
@@ -14,6 +15,12 @@ class LateOpeningNoticeQuery
     {
         app(CashBoxClosingStartQuery::class)->execute($actor, $sessionId);
         $session = CashBoxSession::findOrFail($sessionId);
+
+        return app(CashBoxScheduleSafety::class)->attempt(fn (): ?array => $this->evaluateNotice($actor, $session));
+    }
+
+    private function evaluateNotice(User $actor, CashBoxSession $session): ?array
+    {
         if (! app(ScheduleConfiguration::class)->allows($session->cash_box_id)) {
             return null;
         }

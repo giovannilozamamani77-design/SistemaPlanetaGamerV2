@@ -2,6 +2,7 @@
 
 namespace App\Providers\Filament;
 
+use App\Filament\Auth\Login;
 use App\Filament\Navigation\PanelNavigation;
 use App\Filament\Pages\Dashboard;
 use App\Filament\Pages\Usuarios\EditOwnProfile;
@@ -32,7 +33,9 @@ class InicioPanelProvider extends PanelProvider
             ->default()
             ->id('inicio')
             ->path('inicio')
-            ->login()
+            ->login(Login::class)
+            ->favicon(fn () => asset('branding/planeta-gamer-symbol.png?v=2'))
+            ->renderHook(PanelsRenderHook::AUTH_LOGIN_FORM_AFTER, fn () => view('filament.auth.login-footer'))
             ->brandName('Planeta Gamer')
             ->brandLogo(fn () => view('filament.branding.logo'))
             ->brandLogoHeight('2.5rem')

@@ -5,6 +5,7 @@ use App\Domain\Cajas\Actions\ConfigureCashBoxAction;
 use App\Domain\Cajas\Actions\ConfirmCashBoxClosingAction;
 use App\Domain\Cajas\Actions\LiquidateRegisteredCashBoxCloseAction;
 use App\Domain\Cajas\Actions\OpenCashBoxAction;
+use App\Domain\Cajas\Actions\RecordCashBoxOperationAction;
 use App\Domain\Cajas\Actions\RecordCashBoxTemporaryFundAction;
 use App\Domain\Cajas\Actions\RecordQuickCashBoxCommissionAction;
 use App\Domain\Cajas\Actions\RequestCashBoxCorrectionAction;
@@ -16,16 +17,19 @@ use App\Domain\Cajas\Actions\StartCashBoxAccessAction;
 use App\Domain\Cajas\Contracts\ReservedCashBoxFunds;
 use App\Domain\Cajas\Data\CashBoxComponents;
 use App\Domain\Cajas\Models\CashBox;
+use App\Domain\Cajas\Models\CashBoxAccess;
 use App\Domain\Cajas\Models\CashBoxClose;
 use App\Domain\Cajas\Queries\CashBoxPreviousHandoverQuery;
 use App\Domain\Cajas\Queries\ClosingHistoryQuery;
 use App\Domain\Cajas\Services\ClosingConfirmationRules;
 use App\Domain\Cajas\Services\ClosingRestoration;
 use App\Domain\Configuraciones\Queries\PersonnelRules;
+use App\Domain\ControlHorario\Actions\CaptureCashBoxEarlyWorkAction;
 use App\Domain\ControlHorario\Actions\ProcessCashBoxScheduleEventAction;
 use App\Domain\ControlHorario\Actions\TimeHistoryAudit;
 use App\Domain\ControlHorario\Models\CashBoxScheduleEvent;
 use App\Domain\ControlHorario\Models\ScheduledWorkday;
+use App\Domain\ControlHorario\Queries\ScheduleConfiguration;
 use App\Domain\Incidencias\Actions\ActivateAuthorizedHistoricalShortagesAction;
 use App\Domain\Incidencias\Actions\EconomicHistoryAudit;
 use App\Domain\Incidencias\Actions\ReportEconomicIncidentAction;
@@ -1102,3 +1106,80 @@ it('C125 filters shared closing history by cashier and inclusive Bolivian dates 
         $page->assertTableColumnVisible('liquidated_cents');
     }
 })->with(['administrador', 'cajera']);
+
+it('C394 preserves an operation and its retry when schedule capture fails', function (string $kind) {
+    [$user, $box, $session] = c80OpenFixture();
+    $this->mock(CaptureCashBoxEarlyWorkAction::class, function ($mock) {
+        $mock->shouldReceive('operation')->andThrow(new RuntimeException('Schedule unavailable'));
+        $mock->shouldReceive('safelyForSession')->andReturnNull();
+    });
+    $data = $kind === 'quick'
+        ? ['fee_type' => 'FACTURAS', 'bill_count' => 1, 'request_key' => (string) Str::uuid()]
+        : ['fee_type' => 'NINGUNA', 'amount' => '10', 'source' => 'bcp', 'destination' => 'efectivo', 'fee_component' => 'efectivo', 'request_key' => (string) Str::uuid()];
+    $action = app($kind === 'quick' ? RecordQuickCashBoxCommissionAction::class : RecordCashBoxOperationAction::class);
+    $operation = $action->execute($user, $session->id, $data);
+    expect($action->execute($user, $session->id, $data)->id)->toBe($operation->id);
+    expect($session->fresh()->current_balances['efectivo'])->toBe(200000 + $operation->deltas['efectivo']);
+    $this->assertDatabaseCount('cash_box_operations', 1);
+})->with(['quick', 'movement']);
+
+it('C394 closes with financial safeguards when schedule evaluation fails', function () {
+    [$user, $box, $session] = c80OpenFixture();
+    $data = [...c80Confirmation($user, $session), 'period' => 'manana', 'liquidate' => false, 'balances' => ['efectivo' => '2000', 'bcp' => '15000', 'yape' => '3000'], 'amount_cents' => 0, 'transferred' => false];
+    $this->mock(ScheduleConfiguration::class)->shouldReceive('allows')->andThrow(new RuntimeException('Schedule unavailable'));
+    expect(fn () => app(ConfirmCashBoxClosingAction::class)->execute($user, $session->id, [...$data, 'expected_revision' => 999]))->toThrow(ValidationException::class);
+    $this->assertDatabaseCount('cash_box_closes', 0);
+    $close = app(ConfirmCashBoxClosingAction::class)->execute($user, $session->id, $data);
+    expect($close->shift_snapshot['schedule_status'])->toBe('PENDIENTE_TECNICO');
+    expect($session->fresh()->status)->toBe('CERRADA')->and($close->difference_cents)->toBe(0);
+    expect(app(ConfirmCashBoxClosingAction::class)->execute($user, $session->id, $data)->id)->toBe($close->id);
+    $this->assertDatabaseCount('cash_box_closes', 1);
+});
+
+it('C394 does not block closing on a failed schedule event', function () {
+    [$user, $box, $session] = c80OpenFixture();
+    config(['cajas.schedule_controls_enabled' => true]);
+    $access = CashBoxAccess::where('cash_box_session_id', $session->id)->firstOrFail();
+    CashBoxScheduleEvent::updateOrCreate(['source_key' => 'opening:'.$session->id], ['kind' => 'OPENING', 'user_id' => $user->id, 'pin_audit_id' => $access->pin_audit_id, 'access_id' => $access->id, 'cash_box_session_id' => $session->id, 'occurred_at' => now(), 'status' => 'FAILED']);
+    $data = [...c80Confirmation($user, $session), 'period' => 'manana', 'liquidate' => false, 'balances' => ['efectivo' => '2000', 'bcp' => '15000', 'yape' => '3000'], 'amount_cents' => 0, 'transferred' => false];
+    Livewire::test(CashBoxClosingStart::class, ['cashBoxSession' => $session->id])->set('period', 'manana')->call('nextStep')->assertHasNoErrors()->assertSet('step', 2);
+    app(ConfirmCashBoxClosingAction::class)->execute($user, $session->id, $data);
+    expect($session->fresh()->status)->toBe('CERRADA');
+});
+
+it('C394 commits closing even when recording worked-time proof fails', function () {
+    [$user, $box, $session] = c80OpenFixture();
+    $data = [...c80Confirmation($user, $session), 'period' => 'manana', 'liquidate' => false, 'balances' => ['efectivo' => '2000', 'bcp' => '15000', 'yape' => '3000'], 'amount_cents' => 0, 'transferred' => false];
+    $this->travel(6)->hours();
+    $this->mock(CaptureCashBoxEarlyWorkAction::class, function ($mock) {
+        $mock->shouldReceive('closing')->andThrow(new RuntimeException('Schedule proof unavailable'));
+        $mock->shouldReceive('safelyForSession')->andReturnNull();
+    });
+    $close = app(ConfirmCashBoxClosingAction::class)->execute($user, $session->id, $data);
+    expect($session->fresh()->status)->toBe('CERRADA')->and($close->difference_cents)->toBe(0);
+    expect(app(ConfirmCashBoxClosingAction::class)->execute($user, $session->id, $data)->id)->toBe($close->id);
+    $this->assertDatabaseCount('cash_box_closes', 1);
+});
+
+it('C394 recovers an approved early closing proof after event storage failed without closing twice', function () {
+    [$user, $box, $session] = c80OpenFixture();
+    $day = ScheduledWorkday::create(['user_id' => $user->id, 'created_by' => $user->id, 'work_date' => '2026-10-20', 'period' => 'manana', 'starts_at' => now('UTC'), 'ends_at' => now('UTC')->addMinute()]);
+    DB::table('personnel_rule_versions')->insert(['created_by' => $user->id, 'request_key' => (string) Str::uuid(), 'reason' => 'Margen de prueba', 'values' => json_encode(['morning_closing_minutes' => 0]), 'effective_from' => now()->subDay(), 'created_at' => now(), 'updated_at' => now()]);
+    app(PersonnelRules::class)->forget();
+    $session->update(['scheduled_workday_id' => $day->id]);
+    $request = app(RequestCashBoxEarlyCloseAction::class)->execute($user, $session->id, ['reason' => 'Urgencia de prueba', 'request_key' => (string) Str::uuid()]);
+    $admin = User::factory()->create();
+    $admin->assignRole('administrador');
+    app(ReviewCashBoxEarlyCloseAction::class)->execute($admin, $request->id, ['decision' => 'APROBADA', 'reason' => 'Permiso de prueba', 'request_key' => (string) Str::uuid()]);
+    $data = [...c80Confirmation($user, $session), 'period' => 'manana', 'liquidate' => false, 'balances' => ['efectivo' => '2000', 'bcp' => '15000', 'yape' => '3000'], 'amount_cents' => 0, 'transferred' => false];
+    DB::statement("CREATE TRIGGER fail_closing_schedule BEFORE INSERT ON cash_box_schedule_events WHEN NEW.kind = 'CLOSING' BEGIN SELECT RAISE(ABORT, 'schedule storage unavailable'); END");
+    $action = app(ConfirmCashBoxClosingAction::class);
+    $close = $action->execute($user, $session->id, $data);
+    expect($session->fresh()->status)->toBe('CERRADA')->and($close->shift_snapshot['schedule_early_approved'])->toBeTrue();
+    expect(CashBoxScheduleEvent::where('source_key', 'closing:'.$close->id)->exists())->toBeFalse();
+    DB::statement('DROP TRIGGER fail_closing_schedule');
+    expect($action->execute($user, $session->id, $data)->id)->toBe($close->id);
+    expect(CashBoxScheduleEvent::where('source_key', 'closing:'.$close->id)->sole()->status)->toBe('DONE');
+    $this->assertDatabaseCount('cash_box_closes', 1);
+    $this->assertDatabaseCount('time_movements', 1);
+});

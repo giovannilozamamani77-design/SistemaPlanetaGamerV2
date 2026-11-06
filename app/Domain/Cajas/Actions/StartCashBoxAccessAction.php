@@ -7,6 +7,7 @@ use App\Domain\Cajas\Models\CashBox;
 use App\Domain\Cajas\Models\CashBoxAccess;
 use App\Domain\Cajas\Models\CashBoxConfiguration;
 use App\Domain\Cajas\Models\CashBoxSession;
+use App\Domain\Cajas\Services\CashBoxScheduleSafety;
 use App\Domain\ControlHorario\Actions\CaptureCashBoxContinuityAction;
 use App\Domain\ControlHorario\Actions\ProcessCashBoxScheduleEventAction;
 use App\Domain\ControlHorario\Models\CashBoxScheduleEvent;
@@ -33,16 +34,20 @@ class StartCashBoxAccessAction
         $proof = $this->pin->verifyAndReturnAudit($user, $pin);
         $instant = now('UTC')->toImmutable();
         $day = null;
-        if (app(ScheduleConfiguration::class)->allows($box->id)) {
-            $event = CashBoxScheduleEvent::firstOrCreate(['source_key' => 'pin:'.$user->id.':'.$requestKey],
-                ['user_id' => $user->id, 'kind' => 'PIN', 'pin_audit_id' => $proof, 'occurred_at' => $instant]);
-            $proof = $event->pin_audit_id;
-            $instant = $event->occurred_at;
-            app(ProcessCashBoxScheduleEventAction::class)->safely($event->id);
-            $event->refresh();
-            $day = $event->scheduled_workday_id ? ScheduledWorkday::find($event->scheduled_workday_id) : null;
-            app(CaptureCashBoxContinuityAction::class)->afterVerifiedPin($user);
-        }
+        [$proof, $instant, $day] = app(CashBoxScheduleSafety::class)->attempt(function () use ($box, $user, $requestKey, $proof, $instant, $day): array {
+            if (app(ScheduleConfiguration::class)->allows($box->id)) {
+                $event = CashBoxScheduleEvent::firstOrCreate(['source_key' => 'pin:'.$user->id.':'.$requestKey],
+                    ['user_id' => $user->id, 'kind' => 'PIN', 'pin_audit_id' => $proof, 'occurred_at' => $instant]);
+                $proof = $event->pin_audit_id;
+                $instant = $event->occurred_at;
+                app(ProcessCashBoxScheduleEventAction::class)->safely($event->id);
+                $event->refresh();
+                $day = $event->scheduled_workday_id ? ScheduledWorkday::find($event->scheduled_workday_id) : null;
+                app(CaptureCashBoxContinuityAction::class)->afterVerifiedPin($user);
+            }
+
+            return [$proof, $instant, $day];
+        }, [$proof, $instant, $day]);
 
         // Attendance is committed even if exclusive ownership subsequently rejects this box.
         return DB::transaction(function () use ($user, $box, $requestKey, $proof, $instant, $day): CashBoxAccess {

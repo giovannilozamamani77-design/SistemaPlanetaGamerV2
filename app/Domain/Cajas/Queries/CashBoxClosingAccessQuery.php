@@ -4,6 +4,7 @@ namespace App\Domain\Cajas\Queries;
 
 use App\Domain\Cajas\Models\CashBoxEarlyRequest;
 use App\Domain\Cajas\Models\CashBoxSession;
+use App\Domain\Cajas\Services\CashBoxScheduleSafety;
 use App\Domain\Configuraciones\Queries\PersonnelRules;
 use App\Domain\ControlHorario\Calculators\EarlyDepartureMinutes;
 use App\Domain\ControlHorario\Models\CashBoxScheduleEvent;
@@ -23,12 +24,21 @@ class CashBoxClosingAccessQuery
         $session = CashBoxSession::findOrFail($sessionId);
         $empty = ['allowed' => true, 'early' => false, 'minutes' => 0, 'departure_minutes' => 0, 'period' => $period,
             'workday_id' => null, 'closing_from' => null, 'request' => null, 'message' => null];
+
+        return app(CashBoxScheduleSafety::class)->attempt(
+            fn (): array => $this->evaluateTiming($actor, $sessionId, $period, $context, $session, $empty),
+            array_replace($empty, ['schedule_unavailable' => true, 'message' => 'Horario no disponible. El cierre financiero puede continuar.']), preserveRejections: true
+        );
+    }
+
+    private function evaluateTiming(User $actor, int $sessionId, ?string $period, array $context, CashBoxSession $session, array $empty): array
+    {
         if (! app(ScheduleConfiguration::class)->allows($session->cash_box_id)) {
             return $empty;
         }
         if (CashBoxScheduleEvent::where('cash_box_session_id', $sessionId)->whereIn('status', ['PENDING', 'FAILED'])->exists()
             || CashBoxWorkdayContinuity::where('cash_box_session_id', $sessionId)->where('status', '!=', 'DONE')->exists()) {
-            return array_replace($empty, ['allowed' => false, 'message' => 'La evaluación de tu jornada está pendiente. Puedes seguir trabajando; vuelve a intentar el cierre cuando se complete.']);
+            return array_replace($empty, ['schedule_unavailable' => true, 'message' => 'La evaluación horaria está pendiente. Puedes continuar con el cierre financiero.']);
         }
         $continuity = CashBoxWorkdayContinuity::where('cash_box_session_id', $sessionId)->where('user_id', $actor->id)
             ->where('status', 'DONE')->where('effective_at', '<=', now())->latest('effective_at')->first();

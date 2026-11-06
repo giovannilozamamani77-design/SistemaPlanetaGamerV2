@@ -3,6 +3,7 @@
 namespace App\Domain\Cajas\Queries;
 
 use App\Domain\Cajas\Models\CashBoxSession;
+use App\Domain\Cajas\Services\CashBoxScheduleSafety;
 use App\Domain\ControlHorario\Models\CashBoxScheduleEvent;
 use App\Domain\ControlHorario\Models\CashBoxWorkdayContinuity;
 use App\Domain\ControlHorario\Models\ScheduledWorkday;
@@ -16,6 +17,12 @@ class CashBoxSessionTimingQuery
     {
         $empty = ['status' => 'NO_SCHEDULE', 'scheduled_start' => null, 'scheduled_end' => null,
             'delay_minutes' => null, 'reference_opened_at' => null, 'reference_is_this_box' => false, 'continuity' => false];
+
+        return app(CashBoxScheduleSafety::class)->attempt(fn (): array => $this->evaluateTiming($session, $empty), array_replace($empty, ['status' => 'PENDING']));
+    }
+
+    private function evaluateTiming(?CashBoxSession $session, array $empty): array
+    {
         if (! app(ScheduleConfiguration::class)->enabled()) {
             return array_replace($empty, ['status' => 'PAUSED']);
         }

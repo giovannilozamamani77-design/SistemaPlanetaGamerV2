@@ -23,7 +23,7 @@ use Filament\Http\Middleware\Authenticate;
 use Illuminate\Support\Facades\Route;
 
 Route::get('/', function () {
-    return view('welcome');
+    return redirect()->route('filament.inicio.auth.login');
 });
 
 Route::get('/inicio/mi-foto', OwnProfilePhotoController::class)

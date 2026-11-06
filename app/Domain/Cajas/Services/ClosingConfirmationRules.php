@@ -46,8 +46,15 @@ class ClosingConfirmationRules
             $this->fail('El turno no pertenece a esta sesión.');
         }
         $timeGate = app(CashBoxClosingAccessQuery::class)->assertAllowed($actor, $session->id, $data['period']);
+        if ($timeGate['schedule_unavailable'] ?? false) {
+            $shift['schedule_status'] = 'PENDIENTE_TECNICO';
+        }
         $early = $timeGate['early'] ? $timeGate['request'] : null;
         $earlyWorkdayId = $timeGate['workday_id'];
+        if ($early && $earlyWorkdayId) {
+            $shift['schedule_early_approved'] = true;
+            $shift['schedule_workday_id'] = $earlyWorkdayId;
+        }
         $assessment = app(ClosingFinancialAssessment::class)->calculate($actor, $session->id, $data, $context);
         $counted = $assessment['counted'];
         $restored = $assessment['restored'];

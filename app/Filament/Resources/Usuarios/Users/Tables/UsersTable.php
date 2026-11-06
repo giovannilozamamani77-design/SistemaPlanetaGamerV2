@@ -2,8 +2,9 @@
 
 namespace App\Filament\Resources\Usuarios\Users\Tables;
 
-use App\Domain\Usuarios\Actions\SaveUserAction;
+use App\Filament\Resources\Usuarios\Users\Schemas\UserForm;
 use App\Models\User;
+use Filament\Actions\Action;
 use Filament\Actions\EditAction;
 use Filament\Tables\Columns\Layout\Split;
 use Filament\Tables\Columns\Layout\Stack;
@@ -28,6 +29,7 @@ class UsersTable
                             ->formatStateUsing(fn (bool $state): string => $state ? 'Activo' : 'Inactivo')
                             ->color(fn (bool $state): string => $state ? 'success' : 'gray'),
                     ]),
+                    TextColumn::make('username')->label('Usuario')->prefix('Usuario: ')->searchable()->placeholder('Sin asignar · acceso por correo')->icon('heroicon-o-at-symbol'),
                     TextColumn::make('email')->label('Correo')->searchable()->icon('heroicon-o-envelope')->color('gray')->wrap(),
                     TextColumn::make('roles.name')->label('Rol')->badge()->placeholder('Sin rol asignado'),
                     TextColumn::make('created_at')->label('Registro')->date('d/m/Y')
@@ -60,9 +62,9 @@ class UsersTable
 
                         return $data;
                     })
-                    ->using(fn (User $record, array $data): User => app(SaveUserAction::class)->execute(auth()->user(), $data, $record)),
+                    ->using(fn (User $record, array $data, Action $action): User => UserForm::save(auth()->user(), $data, $record, 'mountedActions.'.$action->getNestingIndex().'.data')),
             ])
             ->paginated([6, 12, 24])->defaultPaginationPageOption(6)->defaultSort('id', 'desc')
-            ->searchPlaceholder('Buscar por nombre o correo')->extraAttributes(['class' => 'pg-user-cards']);
+            ->searchPlaceholder('Buscar por nombre, usuario o correo')->extraAttributes(['class' => 'pg-user-cards']);
     }
 }

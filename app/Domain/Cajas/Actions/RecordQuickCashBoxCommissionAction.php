@@ -6,6 +6,8 @@ use App\Domain\Cajas\Authorization\CashBoxCommand;
 use App\Domain\Cajas\Calculators\CashBoxCommissionCalculator;
 use App\Domain\Cajas\Models\CashBox;
 use App\Domain\Cajas\Models\CashBoxOperation;
+use App\Domain\Cajas\Models\CashBoxSession;
+use App\Domain\Cajas\Services\CashBoxScheduleSafety;
 use App\Domain\ControlHorario\Actions\CaptureCashBoxContinuityAction;
 use App\Domain\ControlHorario\Actions\CaptureCashBoxEarlyWorkAction;
 use App\Models\User;
@@ -55,14 +57,16 @@ class RecordQuickCashBoxCommissionAction
                 'commission_only' => true, 'movement' => $v['fee_type'] === 'ACH' ? $v['movement'] : null,
             ]);
             $session->update(['current_balances' => $balances, 'revision' => $session->revision + 1]);
-            app(CaptureCashBoxEarlyWorkAction::class)->operation($operation, $session);
 
             return $operation->id;
         });
 
         $operation = CashBoxOperation::findOrFail($id);
-        app(CaptureCashBoxContinuityAction::class)->fromOperation($operation);
-        app(CaptureCashBoxEarlyWorkAction::class)->safelyForSession($operation->cash_box_session_id);
+        app(CashBoxScheduleSafety::class)->attempt(function () use ($operation): void {
+            app(CaptureCashBoxEarlyWorkAction::class)->operation($operation, CashBoxSession::findOrFail($operation->cash_box_session_id));
+            app(CaptureCashBoxContinuityAction::class)->fromOperation($operation);
+            app(CaptureCashBoxEarlyWorkAction::class)->safelyForSession($operation->cash_box_session_id);
+        });
 
         return $operation;
     }

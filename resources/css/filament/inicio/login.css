@@ -1,0 +1,39 @@
+/* Login V2: only the native login layout receives these styles. */
+.fi-simple-layout:has(.pg-login-footer) {
+    background: radial-gradient(ellipse at 18% 15%, color-mix(in srgb, #7c3aed 13%, transparent), transparent 48%), radial-gradient(ellipse at 85% 85%, color-mix(in srgb, #25d6c7 8%, transparent), transparent 45%), var(--pg-background);
+    min-height: 100dvh;
+}
+.fi-simple-main:has(.pg-login-footer) {
+    position: relative;
+    width: 100%;
+    max-width: 31rem;
+    padding: 2.5rem;
+    border: 1px solid var(--pg-border);
+    border-radius: 1.5rem;
+    background: var(--pg-surface);
+    box-shadow: 0 24px 80px rgb(0 0 0 / .18);
+}
+.fi-simple-main:has(.pg-login-footer)::before {
+    content: '';
+    position: absolute;
+    inset: 0 1.5rem auto;
+    height: 3px;
+    background: linear-gradient(90deg, #8b5cf6, #25d6c7);
+    border-radius: 0 0 1rem 1rem;
+}
+.fi-simple-main:has(.pg-login-footer) .fi-simple-header { text-align: center; gap: .75rem; }
+.fi-simple-main:has(.pg-login-footer) .pg-brand { justify-content: center; flex-direction: column; gap: .65rem; }
+.fi-simple-main:has(.pg-login-footer) .pg-brand-mark { width: clamp(8rem, 30vw, 10rem); height: 6.5rem; }
+.fi-simple-main:has(.pg-login-footer) .pg-brand-mark img { width: 100%; height: 100%; object-fit: contain; }
+.fi-simple-main:has(.pg-login-footer) .pg-brand-name { flex-direction: row; align-items: center; gap: .4rem; font-size: 1.3rem; line-height: 1.4; }
+.fi-simple-main:has(.pg-login-footer) .pg-brand-name > span { font-size: 1.3rem; }
+.pg-login-footer { display: grid; gap: .85rem; padding-top: 1.25rem; border-top: 1px solid var(--pg-border); text-align: center; color: var(--pg-muted); font-size: .75rem; line-height: 1.6; }
+.pg-login-footer > span { display: flex; flex-wrap: wrap; gap: .4rem; justify-content: center; }
+.pg-login-footer i { opacity: .5; font-style: normal; }
+.pg-login-footer small { font-size: .65rem; opacity: .85; }
+@media (max-width: 540px) {
+    .fi-simple-layout:has(.pg-login-footer) .fi-simple-main-ctn { padding: 1.25rem .85rem; }
+    .fi-simple-main:has(.pg-login-footer) { padding: 2rem 1.25rem; border-radius: 1.15rem; }
+}
+
+.fi-simple-main:has(.pg-login-footer) .fi-simple-header .fi-logo { height: auto !important; }

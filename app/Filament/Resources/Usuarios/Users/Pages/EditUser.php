@@ -2,8 +2,8 @@
 
 namespace App\Filament\Resources\Usuarios\Users\Pages;
 
-use App\Domain\Usuarios\Actions\SaveUserAction;
 use App\Domain\Usuarios\Actions\SetUserPinAction;
+use App\Filament\Resources\Usuarios\Users\Schemas\UserForm;
 use App\Filament\Resources\Usuarios\Users\UserResource;
 use Filament\Actions\Action;
 use Filament\Forms\Components\TextInput;
@@ -44,6 +44,6 @@ class EditUser extends EditRecord
 
     protected function handleRecordUpdate(Model $record, array $data): Model
     {
-        return app(SaveUserAction::class)->execute(auth()->user(), $data, $record);
+        return UserForm::save(auth()->user(), $data, $record);
     }
 }

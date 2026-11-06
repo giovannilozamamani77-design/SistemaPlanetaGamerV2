@@ -305,7 +305,7 @@
 .pg-sale-compact .pg-sale-payment { padding:.45rem .65rem; gap:.3rem; }
 .pg-sale-compact .pg-sale-payment h3 { display:none; }
 .pg-sale-compact .pg-card-sale-total { font-size:1.6rem; }
-@media(min-width:851px) { .pg-sale-compact .pg-card-sale-catalog { max-height:calc(100dvh - 13rem); } .pg-sale-compact .pg-card-sale-cart-lines { max-height:calc(100dvh - 32rem); overflow-y:auto; } }
+@media(min-width:851px) { .pg-sale-compact .pg-card-sale-catalog { max-height:none; } .pg-sale-compact .pg-card-sale-cart-lines { max-height:calc(100dvh - 32rem); overflow-y:auto; } }
 @media(max-width:850px) { .pg-sale-compact .pg-quick-sale-layout { grid-template-columns:1fr; } .pg-sale-compact .pg-quick-sale-cart { position:static; } }
 @media(max-width:500px) { .pg-sale-compact .pg-sale-select-header { flex-wrap:wrap; } }
 @media(pointer:coarse) { .pg-sale-compact .pg-sale-counter button,.pg-sale-compact .pg-sale-counter input { min-height:2.75rem; } }

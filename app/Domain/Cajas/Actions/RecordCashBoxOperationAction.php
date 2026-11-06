@@ -7,6 +7,8 @@ use App\Domain\Cajas\Calculators\CashBoxCommissionCalculator;
 use App\Domain\Cajas\Contracts\ReservedCashBoxFunds;
 use App\Domain\Cajas\Models\CashBox;
 use App\Domain\Cajas\Models\CashBoxOperation;
+use App\Domain\Cajas\Models\CashBoxSession;
+use App\Domain\Cajas\Services\CashBoxScheduleSafety;
 use App\Domain\ControlHorario\Actions\CaptureCashBoxContinuityAction;
 use App\Domain\ControlHorario\Actions\CaptureCashBoxEarlyWorkAction;
 use App\Models\User;
@@ -74,14 +76,16 @@ class RecordCashBoxOperationAction
             $operation = CashBoxOperation::create(['cash_box_session_id' => $session->id, 'user_id' => $user->id, 'source' => $v['source'] ?? null, 'destination' => $v['destination'] ?? null, 'amount_cents' => $principal,
                 'fee_type' => $v['fee_type'], 'bill_count' => $bills, 'suggested_fee_cents' => $suggested, 'fee_cents' => $fee, 'fee_component' => $v['fee_component'], 'deltas' => $deltas, 'reason' => $v['reason'] ?? null, 'status' => 'VIGENTE', 'created_at' => now()]);
             $session->update(['current_balances' => $balances, 'revision' => $session->revision + 1]);
-            app(CaptureCashBoxEarlyWorkAction::class)->operation($operation, $session);
 
             return $operation->id;
         });
 
         $operation = CashBoxOperation::findOrFail($id);
-        app(CaptureCashBoxContinuityAction::class)->fromOperation($operation);
-        app(CaptureCashBoxEarlyWorkAction::class)->safelyForSession($operation->cash_box_session_id);
+        app(CashBoxScheduleSafety::class)->attempt(function () use ($operation): void {
+            app(CaptureCashBoxEarlyWorkAction::class)->operation($operation, CashBoxSession::findOrFail($operation->cash_box_session_id));
+            app(CaptureCashBoxContinuityAction::class)->fromOperation($operation);
+            app(CaptureCashBoxEarlyWorkAction::class)->safelyForSession($operation->cash_box_session_id);
+        });
 
         return $operation;
     }

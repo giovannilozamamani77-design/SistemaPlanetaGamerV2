@@ -1,7 +1,7 @@
 <?php
 
-test('the application returns a successful response', function () {
+test('the application redirects its domain to the login', function () {
     $response = $this->get('/');
 
-    $response->assertStatus(200);
+    $response->assertRedirect(route('filament.inicio.auth.login'));
 });

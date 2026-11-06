@@ -32,8 +32,13 @@ class SaveScheduleSectionAction
         $tolerance = $existing ? ($existing->values['tolerance_minutes'] ?? 15) : $state['settings']['tolerance_minutes'];
         $patch = Arr::only($data, self::FIELDS[$section]);
         if ($section === 'boxes') {
-            $flags = Validator::make($data, ['all_boxes' => ['required', 'boolean']])->validate();
-            $patch['schedule_cash_box_ids'] = $flags['all_boxes'] ? null : ($data['schedule_cash_box_ids'] ?? []);
+            if ($data['all_boxes'] ?? false) {
+                throw ValidationException::withMessages(['schedule_cash_box_ids' => 'Selecciona explícitamente las cajas que tendrán control.']);
+            }
+            $patch['schedule_cash_box_ids'] = $data['schedule_cash_box_ids'] ?? [];
+        }
+        if ($section === 'control') {
+            $patch['schedule_cash_box_ids'] = $existing ? ($existing->values['schedule_cash_box_ids'] ?? []) : $state['settings']['schedule_cash_box_ids'];
         }
 
         return app(SavePersonnelRulesAction::class)->execute($actor, [

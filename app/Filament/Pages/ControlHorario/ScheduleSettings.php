@@ -9,6 +9,7 @@ use App\Domain\ControlHorario\Queries\ScheduleSettingsQuery;
 use App\Filament\Support\ControlHorario\ScheduleSettingsActions;
 use App\Filament\Support\Personal\HandlesPersonnelActionErrors;
 use Filament\Actions\Action;
+use Filament\Forms\Components\CheckboxList;
 use Filament\Forms\Components\Hidden;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\Textarea;
@@ -69,7 +70,7 @@ class ScheduleSettings extends Page
         unset($this->settingsState, $this->preview, $this->shiftSummary, $this->savedShiftSummary);
         $state = app(ScheduleSettingsQuery::class)->execute(auth()->user());
         $this->versionId = $state['version_id'];
-        $this->form->fill([...$state['settings'], 'all_boxes' => $state['settings']['schedule_cash_box_ids'] === null, 'example_start' => '08:00', 'example_opening' => '08:20', 'example_end' => '14:00', 'example_closing' => '13:50']);
+        $this->form->fill([...$state['settings'], 'all_boxes' => false, 'example_start' => '08:00', 'example_opening' => '08:20', 'example_end' => '14:00', 'example_closing' => '13:50']);
     }
 
     public function form(Schema $schema): Schema
@@ -104,9 +105,9 @@ class ScheduleSettings extends Page
             ]),
             Section::make('3. Activación y cajas')->description('Elige las cajas donde se aplicará el interruptor general.')->schema([
                 Hidden::make('schedule_enabled'),
-                Toggle::make('all_boxes')->label('Aplicar a todas las cajas')->live(),
-                Select::make('schedule_cash_box_ids')->label('Cajas donde se aplicará')->multiple()->options(fn () => $this->settingsState['boxes'])->searchable()
-                    ->visible(fn ($get) => ! $get('all_boxes'))->helperText('Selecciona las cajas. Sin selección no se controlará ninguna.'),
+                Hidden::make('all_boxes')->default(false),
+                CheckboxList::make('schedule_cash_box_ids')->label('Cajas donde se aplicará')->options(fn () => $this->settingsState['boxes'])->searchable()
+                    ->helperText('Selecciona las cajas. Sin selección no se controlará ninguna.'),
             ]),
             Section::make('Probar un ejemplo de retraso')->description('Simulación independiente; no cambia horarios ni registra asistencia.')->collapsible()->collapsed()->columns(4)->schema([
                 TimePicker::make('example_start')->label('Inicio de ejemplo')->seconds(false)->format('H:i')->required()->live(),
@@ -152,7 +153,7 @@ class ScheduleSettings extends Page
     public function configureControlAction(): Action
     {
         return ScheduleSettingsActions::configure('configureControl', 'control', 'Control general', 'Enciende o pausa el control horario de Cajas.', [
-            'Activado: evalúa nuevas aperturas y comprueba el horario antes de cerrar, en las cajas y turnos incluidos.',
+            'Activado: evalúa únicamente las cajas seleccionadas y los turnos habilitados. No selecciona todas las cajas.',
             'Pausado: puedes seguir operando; no se borran retrasos, créditos ni historial.',
             'Guardar no asigna jornadas ni registra llegadas anteriores. Cada cajera necesita su jornada por fecha.',
         ], [Toggle::make('cash_box_controls_enabled')->label('Control de horario activo en Cajas')->columnSpanFull()]);
@@ -200,15 +201,16 @@ class ScheduleSettings extends Page
 
     public function configureBoxesAction(): Action
     {
-        return ScheduleSettingsActions::configure('configureBoxes', 'boxes', 'Cajas incluidas', 'Limita dónde se aplica el control general.', [
-            'Todas incluye las cajas actuales y las que crees después. Elegidas limita el control a tu selección.',
-            'Si desactivas Todas y no eliges ninguna, no se controla ninguna caja. Las excluidas siguen operando con las reglas financieras habituales.',
-            'Elegir una caja no activa el control general ni asigna una jornada a la cajera.',
+        return ScheduleSettingsActions::configure('configureBoxes', 'boxes', 'Elegir cajas con control de horario', 'Marca únicamente las cajas donde quieres aplicar las reglas comunes.', [
+            'Cada casilla corresponde a una caja existente. Las no marcadas seguirán operando sin este control horario.',
+            'Las cajas que se creen después no se incluyen automáticamente. Podrás volver a esta sección para seleccionarlas.',
+            'Si el control general está pausado, se conserva la selección pero no se realizan nuevas evaluaciones.',
         ], [
-            Toggle::make('all_boxes')->label('Aplicar a todas las cajas')->live()->columnSpanFull(),
-            Select::make('schedule_cash_box_ids')->label('Elegir cajas')->multiple()->searchable()->options(fn () => $this->settingsState['boxes'])
-                ->visible(fn ($get) => ! $get('all_boxes'))->columnSpanFull(),
-        ]);
+            Hidden::make('all_boxes')->default(false),
+            CheckboxList::make('schedule_cash_box_ids')->label('Cajas con control de horario')->searchable()
+                ->options(fn () => $this->settingsState['boxes'])->columns(2)->columnSpanFull()
+                ->helperText('Sin cajas marcadas, el control no se aplica a ninguna.'),
+        ])->label('Elegir cajas');
     }
 
     public function simulateScheduleAction(): Action
@@ -242,7 +244,7 @@ class ScheduleSettings extends Page
                     throw ValidationException::withMessages($messages);
                 }
                 $this->pendingSettings = Arr::only($state, ['tolerance_minutes', 'delay_multiplier', 'multiplier_minutes', 'automatic_credit', ...ScheduleConfiguration::FIELDS]);
-                $this->pendingSettings['schedule_cash_box_ids'] = ($state['all_boxes'] ?? false) ? null : ($state['schedule_cash_box_ids'] ?? []);
+                $this->pendingSettings['schedule_cash_box_ids'] = $state['schedule_cash_box_ids'] ?? [];
 
                 return ['reason' => '', 'pin' => '', 'request_key' => (string) Str::uuid()];
             })->schema([

@@ -36,8 +36,21 @@
             </article>
             <article class="pg-schedule-card">
                 <div class="pg-schedule-card-title"><span class="pg-schedule-symbol">@svg('heroicon-o-building-storefront', 'size-5')</span><h3>Cajas incluidas</h3></div>
-                <strong>{{ $s['schedule_cash_box_ids'] === null ? 'Todas las cajas' : count($s['schedule_cash_box_ids']).' caja(s) seleccionada(s)' }}</strong>
-                <p>El control solo se aplica en este alcance y en los turnos habilitados.</p>
+                <strong>{{ count($s['schedule_cash_box_ids']) }} caja(s) seleccionada(s)</strong>
+                <p>Solo las cajas seleccionadas.</p>
+                <details class="pg-schedule-box-details">
+                    <summary>Ver cajas y estado</summary>
+                <ul class="pg-schedule-box-list" aria-label="Control de horario por caja">
+                    @forelse ($state['box_controls'] as $box)
+                        <li>
+                            <div><b>{{ $box['name'] }}</b><small>{{ $box['code'] }}</small></div>
+                            <x-filament::badge :color="$box['enabled'] ? 'success' : ($box['selected'] ? 'warning' : 'gray')">{{ $box['enabled'] ? 'Con control' : ($box['selected'] ? 'Seleccionada · en pausa' : 'Sin control') }}</x-filament::badge>
+                        </li>
+                    @empty
+                        <li>No hay cajas creadas todavía.</li>
+                    @endforelse
+                </ul>
+                </details>
                 <footer>{{ $this->configureBoxesAction }}</footer>
             </article>
             <article class="pg-schedule-card pg-schedule-card-example">

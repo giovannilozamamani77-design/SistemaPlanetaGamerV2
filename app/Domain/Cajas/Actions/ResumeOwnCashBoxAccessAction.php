@@ -4,6 +4,7 @@ namespace App\Domain\Cajas\Actions;
 
 use App\Domain\Cajas\Models\CashBoxAccess;
 use App\Domain\Cajas\Models\CashBoxSession;
+use App\Domain\Cajas\Services\CashBoxScheduleSafety;
 use App\Domain\ControlHorario\Actions\CaptureCashBoxContinuityAction;
 use App\Models\User;
 use Illuminate\Auth\Access\AuthorizationException;
@@ -27,7 +28,7 @@ class ResumeOwnCashBoxAccessAction
 
         $access = CashBoxAccess::where('user_id', $user->id)->where('cash_box_id', $session->cash_box_id)->where('cash_box_session_id', $session->id)->latest('id')->first();
         if ($access) {
-            app(CaptureCashBoxContinuityAction::class)->onResume($user, $session);
+            app(CashBoxScheduleSafety::class)->attempt(fn () => app(CaptureCashBoxContinuityAction::class)->onResume($user, $session));
         }
 
         return $access;
