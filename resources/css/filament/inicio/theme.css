@@ -6,6 +6,7 @@
 @import './tarjetas.css';
 @import './prestamos.css';
 @import './accesorios.css';
+@import './dashboard.css';
 
 @source '../../../../app/Filament/**/*';
 @source '../../../../resources/views/**/*';

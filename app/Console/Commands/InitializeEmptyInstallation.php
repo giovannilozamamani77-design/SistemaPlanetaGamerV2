@@ -10,7 +10,7 @@ class InitializeEmptyInstallation extends Command
 {
     protected $signature = 'planeta:instalar {--email= : Correo privado del administrador Giovanni}';
 
-    protected $description = 'Inicializa una base vacía con Giovanni y catálogo de Tarjetas, sin movimientos ni claves públicas';
+    protected $description = 'Inicializa una base vacía con Giovanni, tres cajas configuradas y catálogo de Tarjetas, sin movimientos';
 
     public function handle(InitializeEmptyInstallationAction $action): int
     {
@@ -37,7 +37,8 @@ class InitializeEmptyInstallation extends Command
 
             return self::FAILURE;
         }
-        $this->info('Instalación completa: Giovanni, 16 cortes, stock y efectivo cero. Configura el PIN desde el perfil.');
+        $this->info('Instalación completa: Giovanni, dos cajas BCP de Bs 16.000 y Tigo Money de Bs 10.000, sin movimientos y pendientes del primer conteo.');
+        $this->info('Tarjetas: 16 cortes con sus precios, stock y efectivo cero. Préstamos y Accesorios sin registros operativos. Configura el PIN desde el perfil.');
 
         return self::SUCCESS;
     }

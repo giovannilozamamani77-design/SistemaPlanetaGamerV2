@@ -58,9 +58,10 @@ PHP=/RUTA/AL/PHP85
 `planeta:instalar` es interactivo: solicita el correo de Giovanni y la contraseña dos veces, oculta y de mínimo 12 caracteres. No acepta contraseñas en argumentos. Si encuentra datos, cancela sin borrarlos. Instala en una transacción:
 
 - Un administrador **Giovanni**, roles y permisos de los módulos.
+- Tres cajas activas ya configuradas: **Tablet Blanca** y **Tablet Negra**, cada una con capital base de **Bs 16.000**, y **Tigo Money**, con **Bs 10.000**. Sin aperturas, movimientos ni saldos contados; el primer conteo permanece pendiente. Se conservan las auditorías de creación/configuración.
 - Los **16 cortes y tres precios aprobados** de Entel, Tigo y Viva, incluidas Cabina Viva de Bs 40 y Bs 100; flags de mayoreo conservados.
 - Stock y efectivo **cero**, tienda pendiente de conteo inicial.
-- Ningún cliente, préstamo, venta, caja operativa, deuda, saldo digital, notificación ni movimiento de prueba.
+- Ningún cliente, préstamo, venta, sesión de caja abierta, deuda, saldo digital, producto de Accesorios ni movimiento de prueba. Después, el administrador registra usuarios, inventarios y fondos reales desde sus pantallas.
 
 Una interrupción revierte la transacción; repetir después de un éxito no crea usuarios o catálogos duplicados ni cambia la contraseña. El seeder general ya no crea Test User ni credenciales públicas. No usar `composer setup`, `migrate:fresh`, `db:wipe` ni seeders operativos en producción.
 

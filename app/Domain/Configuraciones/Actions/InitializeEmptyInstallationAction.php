@@ -2,6 +2,9 @@
 
 namespace App\Domain\Configuraciones\Actions;
 
+use App\Domain\Cajas\Actions\ConfigureCashBoxAction;
+use App\Domain\Cajas\Actions\CreateCashBoxAction;
+use App\Domain\Cajas\Data\CashBoxComponents;
 use App\Domain\Tarjetas\Models\CardProduct;
 use App\Domain\Tarjetas\Models\CardStock;
 use App\Domain\Tarjetas\Models\CardStore;
@@ -10,12 +13,14 @@ use Database\Seeders\Usuarios\UsuariosPermissionsSeeder;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\Validator;
+use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
+use SensitiveParameter;
 use Spatie\Permission\Models\Role;
 
 class InitializeEmptyInstallationAction
 {
-    public function execute(string $email, string $password): User
+    public function execute(string $email, #[SensitiveParameter] string $password): User
     {
         Validator::make(compact('email', 'password'), ['email' => ['required', 'email', 'max:255'], 'password' => ['required', 'string', 'min:12', 'max:72']])->validate();
 
@@ -30,6 +35,7 @@ class InitializeEmptyInstallationAction
             }
             $user = User::create(['name' => 'Giovanni', 'email' => $email, 'password' => $password]);
             $user->assignRole('administrador');
+            $this->createInitialBoxes($user);
             $store = CardStore::create(['code' => 'TIENDA', 'cash_balance_cents' => 0, 'revision' => 0]);
             $rows = json_decode(file_get_contents(database_path('seeders/Tarjetas/initial-card-catalog.json')), true, 512, JSON_THROW_ON_ERROR);
             foreach ($rows as $row) {
@@ -39,6 +45,29 @@ class InitializeEmptyInstallationAction
 
             return $user;
         }, 3);
+    }
+
+    private function createInitialBoxes(User $administrator): void
+    {
+        foreach ([
+            ['code' => 'BCP_1', 'name' => 'Tablet Blanca', 'type' => 'BCP', 'base_capital' => '16000'],
+            ['code' => 'BCP_2', 'name' => 'Tablet Negra', 'type' => 'BCP', 'base_capital' => '16000'],
+            ['code' => 'PTM', 'name' => 'Tigo Money', 'type' => 'TIGO_MONEY', 'base_capital' => '10000'],
+        ] as $definition) {
+            $box = app(CreateCashBoxAction::class)->execute($administrator, $definition + [
+                'is_active' => true,
+                'reason' => 'Alta inicial autorizada para la puesta en marcha.',
+                'request_key' => (string) Str::uuid(),
+            ]);
+            $accounts = array_map(fn (string $name): array => ['name' => $name, 'initial' => null], CashBoxComponents::forType($definition['type']));
+            app(ConfigureCashBoxAction::class)->execute($administrator, $box, [
+                'base_capital' => $definition['base_capital'],
+                'accounts' => $accounts,
+                'expected_revision' => $box->revision,
+                'reason' => 'Capital base inicial; saldos reales pendientes del primer conteo.',
+                'request_key' => (string) Str::uuid(),
+            ]);
+        }
     }
 
     private function assertEmpty(): void
