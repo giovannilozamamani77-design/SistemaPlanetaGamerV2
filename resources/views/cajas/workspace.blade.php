@@ -148,7 +148,7 @@
                 @elseif ($workspace['session_timing']['status'] === 'PENDING')
                     <p role="status">Evaluación horaria pendiente. Puedes continuar operando; no cambia los saldos.</p>
                 @elseif ($workspace['session_timing']['status'] === 'NO_SCHEDULE')
-                    <p>Sin jornada vinculada. No hay evaluación de retraso.</p>
+                    <p>Control activo, sin jornada vinculada: Administración debe revisar el turno asignado a esta cajera y su permiso de asistencia. Activar horarios no asigna turnos. No hay evaluación de retraso.</p>
                 @else
                     <p>Jornada: <strong>{{ $workspace['session_timing']['scheduled_start'] }} — {{ $workspace['session_timing']['scheduled_end'] }}</strong></p>
                     @if ($workspace['session_timing']['continuity'] ?? false)

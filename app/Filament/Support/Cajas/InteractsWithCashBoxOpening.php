@@ -62,6 +62,8 @@ trait InteractsWithCashBoxOpening
         Notification::make()->title('Caja abierta a tu nombre')->success()->send();
         if (app(LateOpeningNoticeQuery::class)->execute(auth()->user(), $session->id)) {
             $this->mountAction('lateOpeningNotice');
+        } else {
+            $this->showScheduleSetupNotice();
         }
 
     }

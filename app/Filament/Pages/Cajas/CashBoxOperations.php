@@ -188,6 +188,8 @@ class CashBoxOperations extends Page implements HasTable
         $this->initializeOpening();
         if ($access->cash_box_session_id && app(LateOpeningNoticeQuery::class)->execute(auth()->user(), $access->cash_box_session_id)) {
             $this->mountAction('lateOpeningNotice');
+        } elseif ($access->cash_box_session_id) {
+            $this->showScheduleSetupNotice();
         }
 
     }
@@ -269,6 +271,18 @@ class CashBoxOperations extends Page implements HasTable
                         Notification::make()->title($access->cash_box_session_id ? 'Tu sesión fue recuperada' : 'PIN validado: verifica los saldos para abrir')->success()->send();
                     }),
             ]);
+    }
+
+    private function showScheduleSetupNotice(): void
+    {
+        if (! $this->workspace || ! $this->workspace['session_id'] || ! in_array($this->workspace['session_timing']['status'], ['NO_SCHEDULE', 'PENDING'], true)) {
+            return;
+        }
+        $message = $this->workspace['session_timing']['status'] === 'NO_SCHEDULE'
+            ? 'Esta caja tiene el control activo, pero tu apertura no está vinculada a una jornada. Administración debe revisar tu turno asignado y el permiso de asistencia. Activar los horarios no asigna esos turnos al personal.'
+            : 'La evaluación de horario está pendiente por una incidencia técnica. Administración debe revisarla; no significa que estés a tiempo ni que se haya registrado un retraso.';
+        Notification::make()->title('Control de horario: revisión necesaria')->body($message.' Puedes continuar operando y cerrar tu caja. Este aviso no registra multas ni inventa minutos de retraso.')
+            ->warning()->persistent()->send();
     }
 
     public function lateOpeningNoticeAction(): Action
