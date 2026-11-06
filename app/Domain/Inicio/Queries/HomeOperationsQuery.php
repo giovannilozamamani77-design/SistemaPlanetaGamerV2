@@ -37,7 +37,7 @@ class HomeOperationsQuery
             $query->where('current.user_id', $user->id)->where('current.status', 'ABIERTA')->whereNotNull('current.active_slot');
         }
         $state = "CASE WHEN current.id IS NULL THEN 'UNOPENED' WHEN current.status = 'ABIERTA' AND current.active_slot IS NOT NULL THEN 'OPEN' WHEN current.status IN ('CERRADA', 'CERRADA_CON_INCIDENCIAS') AND current.released_at IS NULL THEN 'PENDING' ELSE 'CLOSED' END";
-        $counts = (clone $query)->selectRaw($state.' AS home_state, COUNT(*) AS total')->groupByRaw($state)->get()->pluck('total', 'home_state');
+        $counts = (clone $query)->selectRaw($state.' AS home_state, COUNT(*) AS total')->groupBy('home_state')->get()->pluck('total', 'home_state');
         $labels = ['OPEN' => 'Abiertas', 'PENDING' => 'Pendientes', 'CLOSED' => 'Cerradas', 'UNOPENED' => 'Sin apertura'];
         $tones = ['OPEN' => 'green', 'PENDING' => 'amber', 'CLOSED' => 'slate', 'UNOPENED' => 'violet'];
         $rows = $query->orderBy('cash_boxes.name')->orderBy('cash_boxes.id')->limit(4)
