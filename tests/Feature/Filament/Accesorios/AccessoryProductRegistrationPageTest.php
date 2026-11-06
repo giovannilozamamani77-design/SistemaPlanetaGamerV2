@@ -145,3 +145,11 @@ it('C269 keeps field pictures outside the clipped input wrappers', function () {
         expect($wrappers->length)->toBe(0);
     }
 });
+
+it('C388 confirms an accessory name containing letters and numbers', function () {
+    $u = productPageAdmin();
+    $this->get(RegisterAccessoryProduct::getUrl())->assertOk()->assertDontSee('sin números');
+    Livewire::test(RegisterAccessoryProduct::class)->fillForm(productPageData($u, ['name' => 'Air 2']))
+        ->call('reviewProduct')->assertHasNoErrors()->callMountedAction()->assertHasNoActionErrors();
+    expect(AccessoryProduct::sole()->name)->toBe('Air 2');
+});

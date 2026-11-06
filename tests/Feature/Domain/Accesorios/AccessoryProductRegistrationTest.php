@@ -205,7 +205,7 @@ it('C254 applies phone camera orientation after resizing and strips original met
 it('C265 rejects numeric accessory names in both registration paths while preserving barcode zeroes', function () {
     $u = registrationAdmin();
     $cat = registrationCategory($u);
-    foreach (['7908984452071', 'Cargador 20W', 'Audifono ２０', '---'] as $name) {
+    foreach (['7908984452071', '---'] as $name) {
         expect(fn () => app(RegisterAccessoryProductAction::class)->execute($u, registrationData($cat, ['name' => $name])))->toThrow(ValidationException::class);
         expect(fn () => app(CreateAccessoryProductAction::class)->execute($u, ['code' => '000123', 'name' => $name, 'sale_price' => '20', 'request_key' => (string) Str::uuid()]))->toThrow(ValidationException::class);
     }
@@ -213,3 +213,12 @@ it('C265 rejects numeric accessory names in both registration paths while preser
     $p = app(RegisterAccessoryProductAction::class)->execute($u, registrationData($cat, ['name' => 'Audífonos inalámbricos', 'description' => 'Modelo veinte, potencia 20 W', 'code' => '000123']));
     expect($p->name)->toBe('Audífonos inalámbricos')->and($p->code)->toBe('000123')->and($p->description)->toContain('20 W');
 });
+
+it('C388 stores alphanumeric names in both accessory registration paths', function (string $name) {
+    $u = registrationAdmin();
+    $cat = registrationCategory($u);
+    $registered = app(RegisterAccessoryProductAction::class)->execute($u, registrationData($cat, ['name' => $name]));
+    $created = app(CreateAccessoryProductAction::class)->execute($u, ['code' => '000123', 'name' => $name, 'sale_price' => '20', 'request_key' => (string) Str::uuid()]);
+    expect($registered->fresh()->name)->toBe($name)->and($created->fresh()->name)->toBe($name);
+    expect($created->code)->toBe('000123');
+})->with(['Air 2', 'Cargador 20W', 'Audífono ２０']);

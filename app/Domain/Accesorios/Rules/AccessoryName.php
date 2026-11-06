@@ -9,8 +9,8 @@ class AccessoryName implements ValidationRule
 {
     public function validate(string $attribute, mixed $value, Closure $fail): void
     {
-        if (! is_string($value) || ! preg_match('/\p{L}/u', $value) || preg_match('/\p{N}/u', $value)) {
-            $fail('Escribe el nombre en texto, sin números. Coloca el modelo, capacidad o potencia en Detalle.');
+        if (! is_string($value) || ! preg_match('/\p{L}/u', $value)) {
+            $fail('Escribe un nombre que incluya letras; también puedes usar números, modelo, capacidad o potencia.');
         }
     }
 }
