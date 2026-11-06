@@ -5,17 +5,20 @@
     @if ($cardSessionStatus['is_owner'])
     <div @class(['pg-sale-workspace pg-sale-compact', 'pg-sale-wholesale' => ($data['mode'] ?? 'NORMAL') === 'WHOLESALE'])>
         <div class="pg-quick-sale-layout">
-            <section class="pg-sale-products" aria-label="Seleccionar tarjetas">
-                <div class="pg-sale-select-header"><div><small>REGISTRO RÁPIDO</small><h2>Selecciona las tarjetas vendidas</h2></div>
+            <section class="pg-card-sale-catalog" aria-label="Seleccionar tarjetas">
+                <div class="pg-sale-select-header"><div><small>REGISTRO RÁPIDO</small><h2>1. Selecciona las tarjetas vendidas</h2></div>
                     <div class="pg-sale-select-actions">
                         @include('tarjetas.sale-history-button')
                     <div class="pg-sale-mode" role="group" aria-label="Tipo de precio">
-                        <button type="button" wire:click="chooseMode('NORMAL')" @class(['is-active' => ($data['mode'] ?? 'NORMAL') === 'NORMAL']) aria-pressed="{{ ($data['mode'] ?? 'NORMAL') === 'NORMAL' ? 'true' : 'false' }}">Unidad</button>
+                        <button type="button" wire:click="chooseMode('NORMAL')" @class(['is-active' => ($data['mode'] ?? 'NORMAL') === 'NORMAL']) aria-pressed="{{ ($data['mode'] ?? 'NORMAL') === 'NORMAL' ? 'true' : 'false' }}">Por unidad</button>
                         <button type="button" wire:click="chooseMode('WHOLESALE')" @class(['is-active' => ($data['mode'] ?? 'NORMAL') === 'WHOLESALE']) aria-pressed="{{ ($data['mode'] ?? 'NORMAL') === 'WHOLESALE' ? 'true' : 'false' }}">Por mayor</button>
                     </div>
                     </div>
                 </div>
-                <p class="pg-sale-help">Mayorista: mínimo {{ $summary['wholesale_min_quantity'] }} unidades combinadas. Cantidad + Enter para registrar. Cambiar de modo precarga precios y retira los cortes no habilitados.</p>
+                <div class="pg-card-sale-guide">
+                    <p>Usa <strong>+</strong> y <strong>−</strong> o escribe la cantidad. Revisa el resumen antes de registrar.</p>
+                    <details><summary>Venta por mayor y atajo de teclado</summary><p>Por mayor: mínimo {{ $summary['wholesale_min_quantity'] }} unidades combinadas. Al cambiar de modo se actualizan los precios y se retiran los cortes no habilitados. <strong>Enter registra inmediatamente</strong> el corte cuya cantidad estás escribiendo.</p></details>
+                </div>
                 @if (($data['mode'] ?? 'NORMAL') === 'WHOLESALE')
                     <section class="pg-recharge-compact" aria-label="Recargas mayoristas Entel">
                         <header>@include('tarjetas.company-logo', ['company' => 'ENTEL', 'logoClass' => 'pg-sale-company-logo'])<div><small>VENTA DIGITAL</small><h2>Recargas mayoristas Entel</h2></div></header>
@@ -63,7 +66,7 @@
                                 <div class="pg-sale-cut-meta"><span>{{ $ineligible ? 'No habilitado para mayorista' : ($product['quantity'] ? 'Stock: '.$product['quantity'] : 'Agotado') }}</span><span>Venta: Bs {{ \App\Support\Bolivianos::formatCompact($price) }}</span></div>
                                 <div class="pg-sale-counter">
                                     <button type="button" wire:click="adjustQuantity({{ $id }}, -1)" aria-label="Quitar una unidad de {{ $product['label'] }}" @disabled(! ($quantities[$key] ?? 0))>−</button>
-                                    <input type="text" data-sale-quantity inputmode="numeric" autocomplete="off" wire:keydown.enter.prevent="registerQuickSale({{ $id }}, $event.target.value, {{ \Illuminate\Support\Js::from($data['request_key'] ?? '') }})" wire:model.live.debounce.350ms="quantities.{{ $key }}" aria-label="Cantidad de {{ $product['label'] }}" @disabled($unavailable) wire:loading.attr="disabled" wire:target="registerSale,registerQuickSale" />
+                                    <input type="text" data-sale-quantity placeholder="0" inputmode="numeric" autocomplete="off" wire:keydown.enter.prevent="registerQuickSale({{ $id }}, $event.target.value, {{ \Illuminate\Support\Js::from($data['request_key'] ?? '') }})" wire:model.live.debounce.350ms="quantities.{{ $key }}" aria-label="Cantidad de {{ $product['label'] }}" @disabled($unavailable) wire:loading.attr="disabled" wire:target="registerSale,registerQuickSale" />
                                     <button type="button" wire:click="adjustQuantity({{ $id }}, 1)" aria-label="Agregar una unidad de {{ $product['label'] }}" @disabled($unavailable || (int) ($quantities[$key] ?? 0) >= $product['quantity'])>+</button>
                                 </div>
                                 @error('quantities.'.$key)<p class="pg-sale-error">{{ $message }}</p>@enderror
@@ -79,9 +82,9 @@
                 </div>
             </section>
             <form wire:submit="registerSale" class="pg-quick-sale-cart" aria-label="Venta actual">
-                <header><div><small>VENTA ACTUAL</small><h2>{{ $preview['total_quantity'] ?? 0 }} unidades</h2></div><button type="button" wire:click="clearCart" class="pg-sale-clear" aria-label="Vaciar venta actual" title="Vaciar venta actual"><x-filament::icon icon="heroicon-o-trash" class="h-5 w-5" /></button></header>
+                <header><div><small>2. REVISA Y COBRA</small><h2>{{ $preview['total_quantity'] ?? 0 }} unidades</h2></div><button type="button" wire:click="clearCart" class="pg-sale-clear" aria-label="Vaciar venta actual" title="Vaciar venta actual"><x-filament::icon icon="heroicon-o-trash" class="h-5 w-5" /></button></header>
                 <div class="pg-sale-cash"><span>Efectivo esperado</span><strong>{{ $summary['cash_cents'] === null ? 'Sin conteo inicial' : 'Bs '.\App\Support\Bolivianos::formatCompact($summary['cash_cents']) }}</strong><small>Ventas en efectivo incluidas · Atiende: {{ auth()->user()->name }}</small></div>
-                <div class="pg-sale-cart-lines">
+                <div class="pg-card-sale-cart-lines">
                     @forelse ($cart as $key => $item)
                         <div class="pg-sale-cart-line" wire:key="sale-line-{{ $key }}">
                             <strong>{{ $item['product']['label'] }}</strong><span>{{ $item['line']['quantity'] }} unidades</span>
@@ -93,11 +96,11 @@
                             @error('data.lines.'.$key.'.unit_price')<p class="pg-sale-error">{{ $message }}</p>@enderror
                         </div>
                     @empty
-                        <div class="pg-sale-empty"><x-filament::icon icon="heroicon-o-cursor-arrow-rays" class="h-8 w-8" /><p>Selecciona tarjetas o escribe la cantidad mayorista.</p></div>
+                        <div class="pg-sale-empty"><x-filament::icon icon="heroicon-o-cursor-arrow-rays" class="h-8 w-8" /><p>Tu venta está vacía. Agrega tarjetas con + o escribe una cantidad.</p></div>
                     @endforelse
                 </div>
                 <div class="pg-sale-payment"><h3>Método de pago</h3><span><x-filament::icon icon="heroicon-o-banknotes" class="h-5 w-5" /> Efectivo</span></div>
-                <footer><span>Total a cobrar</span><strong class="pg-sale-total">Bs {{ \App\Support\Bolivianos::formatCompact($preview['total_cents'] ?? 0) }}</strong><span class="sr-only">{{ $preview ? 'Total a cobrar: Bs '.\App\Support\Bolivianos::formatCompact($preview['total_cents']) : '' }}</span>
+                <footer><span>Total a cobrar</span><strong class="pg-card-sale-total">Bs {{ \App\Support\Bolivianos::formatCompact($preview['total_cents'] ?? 0) }}</strong><span class="sr-only">{{ $preview ? 'Total a cobrar: Bs '.\App\Support\Bolivianos::formatCompact($preview['total_cents']) : '' }}</span>
                     @error('data.lines')<p class="pg-sale-error">{{ $message }}</p>@enderror
                     @error('data.mode')<p class="pg-sale-error">{{ $message }}</p>@enderror
                     @error('data.payment_method')<p class="pg-sale-error">{{ $message }}</p>@enderror
