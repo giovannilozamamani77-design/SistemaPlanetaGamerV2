@@ -21,7 +21,7 @@ use Illuminate\Support\Str;
 use Livewire\Livewire;
 
 uses(RefreshDatabase::class);
-it('C198 separates a mixed receipt by historical company without duplicating cash or private digital lines', function () {
+it('C198 preserves company snapshots while C411 displays complete receipts without duplicate cash or private digital lines', function () {
     expect(config('database.connections.sqlite.database'))->toBe(':memory:');
     test()->seed([UsuariosPermissionsSeeder::class, TarjetasPermissionsSeeder::class, CardSalesPermissionsSeeder::class, EntelDigitalPermissionsSeeder::class]);
     Filament::setCurrentPanel(Filament::getPanel('inicio'));
@@ -57,11 +57,13 @@ it('C198 separates a mixed receipt by historical company without duplicating cas
     expect($cards['ENTEL']->companyLines())->toHaveCount(1)->and($cards['TIGO']->companyLines())->toHaveCount(1)->and($entries->where('entry_type', 'RECHARGE')->sole()->companyLines())->toHaveCount(0);
     expect($query->filterHistory($query->companyEntries($u), ['company' => 'TIGO'])->get()->sum('total_cents'))->toBe(950);
     $products['ENTEL']->update(['company' => 'VIVA']);
-    $page = Livewire::test(QuickCardSale::class)->assertCanSeeTableRecords($entries);
-    expect($page->instance()->getTable()->getDefaultGroup()->getId())->toBe('company');
-    $page->mountTableAction('detail', $cards['ENTEL']);
+    $receiptEntries = $query->currentSessionEntries($u)->get();
+    $page = Livewire::test(QuickCardSale::class)->assertCanSeeTableRecords($receiptEntries);
+    expect($page->instance()->getTableRecords()->total())->toBe(2);
+    expect($receiptEntries->firstWhere('entry_type', 'CARD')->total_cents)->toBe(4710);
+    $page->mountTableAction('detail', $receiptEntries->firstWhere('entry_type', 'CARD'));
     $html = $page->instance()->getSchema('mountedActionSchema0')->toHtml();
-    expect($html)->toContain('Entel')->not->toContain('Tigo');
+    expect($html)->toContain('ENTEL')->toContain('TIGO');
     expect(CardStore::sole()->cash_balance_cents)->toBe(14710);
     expect(CardSale::count())->toBe(1);
     $page->assertSee('Resumen del turno abierto')->assertSee('Tarjetas vendidas');

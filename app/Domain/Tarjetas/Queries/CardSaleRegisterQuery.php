@@ -18,10 +18,39 @@ class CardSaleRegisterQuery
     public function entries(User $user): Builder
     {
         app(CardInventoryAuthorization::class)->authorize($user, 'sell');
-        $cards = DB::table('card_sales')->selectRaw("CAST(id AS CHAR) as id, id as source_id, 'CARD' as entry_type, user_id, created_at, mode, total_quantity, total_cents, NULL as customer_total_cents, NULL as bonus_rate_bps");
-        $digital = DB::table('entel_recharges')->selectRaw("CAST(-id AS CHAR) as id, id as source_id, 'RECHARGE' as entry_type, user_id, created_at, kind as mode, NULL as total_quantity, amount_cents as total_cents, customer_total_cents, bonus_rate_bps");
+        $cards = DB::table('card_sales')->selectRaw("CAST(id AS CHAR) as id, id as source_id, 'CARD' as entry_type, user_id, created_at, mode, total_quantity, total_cents, NULL as customer_total_cents, NULL as bonus_rate_bps, (SELECT created_at FROM card_sale_cancellations WHERE card_sale_id = card_sales.id) as cancelled_at");
+        $digital = DB::table('entel_recharges')->selectRaw("CAST(-id AS CHAR) as id, id as source_id, 'RECHARGE' as entry_type, user_id, created_at, kind as mode, NULL as total_quantity, amount_cents as total_cents, customer_total_cents, bonus_rate_bps, NULL as cancelled_at");
 
         return CardSaleRegisterEntry::query()->fromSub($cards->unionAll($digital), 'sale_register')->with(['user', 'lines']);
+    }
+
+    /** One receipt per operation, scoped to the cashier serving the currently open session. */
+    public function currentSessionEntries(User $user): Builder
+    {
+        $query = $this->entries($user);
+        $session = app(CardStoreSessionQuery::class)->status($user)['session'];
+        if (! $session || $session->closed_at !== null) {
+            return $query->whereRaw('1 = 0');
+        }
+        $cards = DB::table('card_sale_lines as line')
+            ->join('card_inventory_movements as movement', 'movement.id', '=', 'line.card_inventory_movement_id')
+            ->where('movement.card_store_session_id', $session->id)->select('line.card_sale_id');
+        $digital = DB::table('entel_recharges as recharge')
+            ->join('card_inventory_movements as movement', 'movement.id', '=', 'recharge.card_inventory_movement_id')
+            ->where('movement.card_store_session_id', $session->id)->select('recharge.id');
+
+        return $query->where('sale_register.user_id', $session->user_id)
+            ->where(function (Builder $q) use ($cards, $digital): void {
+                $q->where(fn (Builder $card) => $card->where('entry_type', 'CARD')->whereIn('source_id', $cards))
+                    ->orWhere(fn (Builder $recharge) => $recharge->where('entry_type', 'RECHARGE')->whereIn('source_id', $digital));
+            });
+    }
+
+    public function currentSessionDetail(User $user, CardSaleRegisterEntry $entry): array
+    {
+        $entry = $this->currentSessionEntries($user)->where('sale_register.id', $entry->id)->firstOrFail();
+
+        return $this->detail($user, $entry);
     }
 
     public function companyEntries(User $user): Builder
@@ -33,8 +62,8 @@ class CardSaleRegisterQuery
             ->selectRaw("MIN(id) as row_id, {$company} as company, SUM(quantity) as total_quantity, SUM(total_cents) as total_cents")
             ->groupBy('card_sale_id')->groupByRaw($company);
         $cards = DB::table('card_sales as sales')->joinSub($lines, 'company_lines', 'company_lines.card_sale_id', '=', 'sales.id')
-            ->selectRaw("CAST(company_lines.row_id AS CHAR) as id, sales.id as source_id, sales.id as line_sale_id, 'CARD' as entry_type, sales.user_id, sales.created_at, sales.mode, company_lines.company, company_lines.total_quantity, company_lines.total_cents, NULL as customer_total_cents, NULL as bonus_rate_bps");
-        $digital = DB::table('entel_recharges')->selectRaw("CAST(-id AS CHAR) as id, id as source_id, -id as line_sale_id, 'RECHARGE' as entry_type, user_id, created_at, kind as mode, 'ENTEL' as company, NULL as total_quantity, amount_cents as total_cents, customer_total_cents, bonus_rate_bps");
+            ->selectRaw("CAST(company_lines.row_id AS CHAR) as id, sales.id as source_id, sales.id as line_sale_id, 'CARD' as entry_type, sales.user_id, sales.created_at, sales.mode, company_lines.company, company_lines.total_quantity, company_lines.total_cents, NULL as customer_total_cents, NULL as bonus_rate_bps, (SELECT created_at FROM card_sale_cancellations WHERE card_sale_id = sales.id) as cancelled_at");
+        $digital = DB::table('entel_recharges')->selectRaw("CAST(-id AS CHAR) as id, id as source_id, -id as line_sale_id, 'RECHARGE' as entry_type, user_id, created_at, kind as mode, 'ENTEL' as company, NULL as total_quantity, amount_cents as total_cents, customer_total_cents, bonus_rate_bps, NULL as cancelled_at");
 
         return CardCompanySaleEntry::query()->fromSub($cards->unionAll($digital), 'sale_register')->with(['user', 'lines']);
     }
@@ -49,6 +78,7 @@ class CardSaleRegisterQuery
         $company = "COALESCE({$company}, 'SIN_EMPRESA')";
         $cards = DB::table('card_sale_lines as lines')
             ->join('card_inventory_movements as movements', 'movements.id', '=', 'lines.card_inventory_movement_id')
+            ->whereNotIn('lines.card_sale_id', DB::table('card_sale_cancellations')->select('card_sale_id'))
             ->where('movements.card_store_session_id', $session->id)
             ->selectRaw("{$company} as company, SUM(lines.quantity) as quantity, SUM(lines.total_cents) as total_cents")
             ->groupByRaw($company)->get()->keyBy('company');

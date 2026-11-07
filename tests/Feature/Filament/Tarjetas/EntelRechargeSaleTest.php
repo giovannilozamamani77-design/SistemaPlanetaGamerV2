@@ -106,7 +106,7 @@ it('C160 presents compact recharge inputs and one combined register for cards an
     app(RecordCardSaleAction::class)->execute($u, ['mode' => 'NORMAL', 'payment_method' => 'CASH', 'lines' => [['product_id' => $product->id, 'quantity' => 1, 'unit_price' => '10']], 'request_key' => (string) Str::uuid()]);
     $this->travel(1)->seconds();
     app(RecordEntelRechargeAction::class)->execute($u, ['kind' => 'PACKAGES', 'amount' => '100', 'external_confirmed' => true, 'request_key' => (string) Str::uuid()]);
-    $p = Livewire::test(QuickCardSale::class)->call('chooseMode', 'WHOLESALE')->call('chooseRechargeKind', 'CREDIT')->assertSeeHtml('pg-recharge-row')->assertSee('Registro por empresa')->assertSee('Recarga · Paquetes')->assertSee('Tarjetas · Normal');
+    $p = Livewire::test(QuickCardSale::class)->call('chooseMode', 'WHOLESALE')->call('chooseRechargeKind', 'CREDIT')->assertSeeHtml('pg-recharge-row')->assertSee('Historial de ventas · turno actual')->assertSee('Recarga · Paquetes')->assertSee('Tarjetas · Normal');
     // One summary table and one paginated register; no separate digital register.
     expect(substr_count($p->html(), '<table'))->toBe(2);
     $p->assertSee('Resumen del turno abierto');
@@ -154,7 +154,7 @@ it('C171 displays historical physical cuts and keeps digital rows separate for m
     foreach ($entries->where('entry_type', 'RECHARGE') as $entry) {
         expect($entry->lines)->toHaveCount(0);
     }
-    $page = Livewire::test(QuickCardSale::class)->assertSeeHtml('pg-sale-register-products')->assertSee('Empresa · corte · cantidad')->assertSee('Tigo · Bs 20')->assertSee('× 3')->assertSee('1 recarga')->assertSee('Monto libre')->assertSee('Recarga · Crédito')->assertSee('Recarga · Paquetes');
+    $page = Livewire::test(QuickCardSale::class)->assertSeeHtml('pg-sale-register-products')->assertSee('Detalle de la venta')->assertSee('Tigo · Bs 20')->assertSee('× 3')->assertSee('1 recarga')->assertSee('Monto libre')->assertSee('Recarga · Crédito')->assertSee('Recarga · Paquetes');
     expect($page->html().json_encode($page->snapshot))->not->toContain('123456.78', '876543.21', 'balance_cents');
 });
 

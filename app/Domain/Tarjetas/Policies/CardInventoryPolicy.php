@@ -41,6 +41,11 @@ class CardInventoryPolicy
         return $this->operational($u, 'tarjetas.compras.registrar');
     }
 
+    public function cancelSale(User $u): bool
+    {
+        return $this->operational($u, 'tarjetas.ventas.registrar') && $u->hasRole('administrador');
+    }
+
     public function sell(User $u): bool
     {
         return $this->operational($u, 'tarjetas.ventas.registrar');

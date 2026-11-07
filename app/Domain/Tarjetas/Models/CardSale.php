@@ -6,6 +6,7 @@ use App\Models\User;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 use LogicException;
 
 class CardSale extends Model
@@ -28,6 +29,11 @@ class CardSale extends Model
     public function user(): BelongsTo
     {
         return $this->belongsTo(User::class);
+    }
+
+    public function cancellation(): HasOne
+    {
+        return $this->hasOne(CardSaleCancellation::class);
     }
 
     public function lines(): HasMany

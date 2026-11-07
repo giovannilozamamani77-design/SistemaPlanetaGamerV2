@@ -169,7 +169,7 @@ class DailyReportRecordsQuery
                 ->groupBy('sale.id', 'sale.created_at', 'sale.user_id');
         }
         if ($source === 'CARDS') {
-            $query = DB::table('card_sales');
+            $query = DB::table('card_sales')->whereNotIn('id', DB::table('card_sale_cancellations')->select('card_sale_id'));
             $fields = 'id AS record_id, created_at AS recorded_at, user_id AS actor_id, card_store_id AS subject_id, total_quantity AS quantity, total_cents AS sales_cents, total_cents AS collections_cents';
         } elseif (in_array($source, ['CREDIT', 'PACKAGES'], true)) {
             $query = DB::table('entel_recharges')->where('kind', $source);

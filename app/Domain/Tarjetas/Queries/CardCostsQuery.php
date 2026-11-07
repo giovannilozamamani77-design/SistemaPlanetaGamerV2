@@ -9,6 +9,7 @@ use App\Domain\Tarjetas\Models\EntelDigitalAccount;
 use App\Domain\Tarjetas\Models\EntelRecharge;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
 
 class CardCostsQuery
@@ -31,7 +32,7 @@ class CardCostsQuery
     {
         Gate::forUser($actor->fresh())->authorize('initialize', CardProduct::class);
         Gate::forUser($actor->fresh())->authorize('viewAny', EntelDigitalAccount::class);
-        $physical = CardSaleLine::query()->selectRaw('COUNT(*) as records, COALESCE(SUM(CASE WHEN cost_cents IS NULL THEN 1 ELSE 0 END),0) as pending, COALESCE(SUM(gross_margin_cents),0) as known_margin')->first();
+        $physical = CardSaleLine::query()->whereNotIn('card_sale_id', DB::table('card_sale_cancellations')->select('card_sale_id'))->selectRaw('COUNT(*) as records, COALESCE(SUM(CASE WHEN cost_cents IS NULL THEN 1 ELSE 0 END),0) as pending, COALESCE(SUM(gross_margin_cents),0) as known_margin')->first();
         $digital = EntelRecharge::query()->select('kind')->selectRaw('COUNT(*) as records, COALESCE(SUM(CASE WHEN cost_cents IS NULL THEN 1 ELSE 0 END),0) as pending, COALESCE(SUM(gross_margin_cents),0) as known_margin')->groupBy('kind')->get()->keyBy('kind');
         $result = [];
         foreach (['PHYSICAL' => $physical, 'CREDIT' => $digital->get('CREDIT'), 'PACKAGES' => $digital->get('PACKAGES')] as $key => $row) {

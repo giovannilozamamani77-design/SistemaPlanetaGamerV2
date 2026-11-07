@@ -4,6 +4,7 @@ namespace App\Filament\Pages\Tarjetas;
 
 use App\Domain\Tarjetas\Actions\RecordCardSaleAction;
 use App\Domain\Tarjetas\Actions\RecordEntelRechargeAction;
+use App\Domain\Tarjetas\Actions\ReviewCardSaleCancellation;
 use App\Domain\Tarjetas\Calculators\CardSaleCalculator;
 use App\Domain\Tarjetas\Data\CardInventoryInput;
 use App\Domain\Tarjetas\Models\CardProduct;
@@ -25,6 +26,7 @@ use Filament\Actions\Action;
 use Filament\Actions\ActionGroup;
 use Filament\Forms\Components\DatePicker;
 use Filament\Forms\Components\Select;
+use Filament\Forms\Components\Textarea;
 use Filament\Infolists\Components\RepeatableEntry;
 use Filament\Infolists\Components\TextEntry;
 use Filament\Notifications\Notification;
@@ -36,7 +38,6 @@ use Filament\Tables\Columns\ViewColumn;
 use Filament\Tables\Concerns\InteractsWithTable;
 use Filament\Tables\Contracts\HasTable;
 use Filament\Tables\Filters\Filter;
-use Filament\Tables\Grouping\Group;
 use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Facades\Gate;
@@ -323,7 +324,7 @@ class QuickCardSale extends Page implements HasTable
 
     protected function getHeaderActions(): array
     {
-        return [ActionGroup::make([
+        return [Action::make('cancellationHistory')->label('Solicitudes de anulación')->icon('heroicon-o-receipt-refund')->url(fn () => CardSaleCancellations::getUrl())->visible(fn () => CardSaleCancellations::canAccess()), ActionGroup::make([
             CardCashFundingForms::action()->visible(fn () => $this->currentSaleSession()['is_owner'] && Gate::allows('cashFunding', CardProduct::class)),
             CardStockIntakeActions::delivery(fn () => $this->refreshStockCatalog())->visible(fn () => $this->currentSaleSession()['is_owner'] && Gate::allows('receive', CardProduct::class)),
             CardStockIntakeActions::purchase(fn () => $this->refreshStockCatalog())->visible(fn () => $this->currentSaleSession()['is_owner'] && Gate::allows('purchase', CardProduct::class)),
@@ -331,15 +332,30 @@ class QuickCardSale extends Page implements HasTable
         ])->label('Movimientos')->icon('heroicon-o-arrows-right-left')->button()->visible(fn () => $this->currentSaleSession()['is_owner']), $this->openStoreAction(), $this->closeStoreAction()];
     }
 
+    protected function cancelSaleAction(): Action
+    {
+        return CardInventoryForms::modal(Action::make('cancelSale'))
+            ->label('Solicitar anulación')->icon('heroicon-o-receipt-refund')
+            ->visible(fn (CardSaleRegisterEntry $record): bool => $record->entry_type === 'CARD'
+                && app(ReviewCardSaleCancellation::class)->canRequest(auth()->user(), $record->source_id))
+            ->modalHeading(fn (CardSaleRegisterEntry $record): string => 'Solicitar anulación de venta #'.$record->source_id)
+            ->modalDescription('El administrador revisará la solicitud. Cuando la apruebe, podrás registrar la venta correcta.')
+            ->schema([Textarea::make('reason')->label('Motivo')->required()->minLength(10)->maxLength(2000)])
+            ->action(function (CardSaleRegisterEntry $record, array $data): void {
+                app(ReviewCardSaleCancellation::class)->request(auth()->user(), $record->source_id, $data['reason']);
+                Notification::make()->success()->title('Solicitud enviada')->send();
+            });
+    }
+
     protected function registerEntryDetail(CardSaleRegisterEntry $record): array
     {
-        return $this->registerDetails[$record->id] ??= app(CardSaleRegisterQuery::class)->companyDetail(auth()->user(), $record);
+        return $this->registerDetails[$record->id] ??= app(CardSaleRegisterQuery::class)->currentSessionDetail(auth()->user(), $record);
     }
 
     public function table(Table $table): Table
     {
-        return $table->query(app(CardSaleRegisterQuery::class)->companyEntries(auth()->user()))->heading('Registro por empresa')->groups([Group::make('company')->label('Empresa')->getTitleFromRecordUsing(fn ($record) => CardInventoryInput::COMPANIES[$record->company] ?? 'Sin empresa registrada')])->defaultGroup('company')->groupingSettingsHidden()->columns([
-            TextColumn::make('created_at')->label('Fecha y hora')->dateTime('d/m/Y H:i')->timezone('America/La_Paz')->description(fn (CardSaleRegisterEntry $record) => '#'.$record->source_id.' · '.$record->user?->name),
+        return $table->query(app(CardSaleRegisterQuery::class)->currentSessionEntries(auth()->user()))->heading('Historial de ventas · turno actual')->columns([
+            TextColumn::make('created_at')->label('Fecha y hora')->dateTime('d/m/Y H:i:s')->timezone('America/La_Paz')->description(fn (CardSaleRegisterEntry $record) => '#'.$record->source_id.' · '.$record->user?->name),
             TextColumn::make('mode')->label('Operación')->formatStateUsing(fn ($state) => match ($state) {
                 'NORMAL' => 'Tarjetas · Normal', 'WHOLESALE' => 'Tarjetas · Mayorista', 'CREDIT' => 'Recarga · Crédito', 'PACKAGES' => 'Recarga · Paquetes', default => $state
             })->badge()->color(fn ($state) => match ($state) {
@@ -347,7 +363,8 @@ class QuickCardSale extends Page implements HasTable
             })->icon(fn ($state) => match ($state) {
                 'CREDIT' => 'heroicon-o-device-phone-mobile', 'PACKAGES' => 'heroicon-o-cube', default => 'heroicon-o-ticket'
             }),
-            ViewColumn::make('products')->label('Empresa · corte · cantidad')->view('tarjetas.sale-register-products'),
+            ViewColumn::make('products')->label('Detalle de la venta')->view('tarjetas.sale-register-products'),
+            TextColumn::make('cancelled_at')->label('Estado')->formatStateUsing(fn ($state) => filled($state) ? 'Anulada' : 'Vigente')->placeholder('Vigente')->badge()->color(fn ($state) => filled($state) ? 'danger' : 'success'),
             TextColumn::make('total_cents')->label('Total')->formatStateUsing(fn ($state) => 'Bs '.Bolivianos::formatCompact($state)),
         ])->filters([
             Filter::make('history')->label('Buscar ventas')->schema([
@@ -370,6 +387,6 @@ class QuickCardSale extends Page implements HasTable
                 TextEntry::make('unit_price_cents')->label('Precio aplicado')->formatStateUsing(fn ($state) => 'Bs '.Bolivianos::formatCompact($state)),
                 TextEntry::make('total_cents')->label('Subtotal')->formatStateUsing(fn ($state) => 'Bs '.Bolivianos::formatCompact($state)),
             ])->columns(2),
-        ])])->paginated([5, 10, 25, 50])->defaultPaginationPageOption(5)->defaultSort(fn ($query) => $query->orderBy('created_at', 'desc')->orderBy('source_id', 'desc')->orderBy('entry_type'))->emptyStateHeading('Todavía no hay ventas');
+        ]), $this->cancelSaleAction()])->paginated([5, 10, 25, 50])->defaultPaginationPageOption(5)->defaultSort(fn ($query) => $query->orderBy('created_at', 'desc')->orderBy('source_id', 'desc')->orderBy('entry_type'))->emptyStateHeading('No hay ventas en el turno actual');
     }
 }

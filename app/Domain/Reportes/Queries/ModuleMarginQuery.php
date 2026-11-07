@@ -66,7 +66,7 @@ class ModuleMarginQuery
         $zoneDay = DB::connection()->getDriverName() === 'sqlite' ? "date(sale.created_at, '-4 hours')" : 'DATE(DATE_SUB(sale.created_at, INTERVAL 4 HOUR))';
         foreach (($module === 'CARDS' ? ['CARDS', 'CREDIT', 'PACKAGES'] : ['ACCESSORY', 'PHONE']) as $source) {
             if ($source === 'CARDS') {
-                $query = DB::table('card_sale_lines as line')->join('card_sales as sale', 'sale.id', '=', 'line.card_sale_id');
+                $query = DB::table('card_sale_lines as line')->join('card_sales as sale', 'sale.id', '=', 'line.card_sale_id')->whereNotIn('sale.id', DB::table('card_sale_cancellations')->select('card_sale_id'));
                 $gross = 'line.gross_margin_cents';
             } elseif (in_array($source, ['CREDIT', 'PACKAGES'], true)) {
                 $query = DB::table('entel_recharges as sale')->where('sale.kind', $source);
