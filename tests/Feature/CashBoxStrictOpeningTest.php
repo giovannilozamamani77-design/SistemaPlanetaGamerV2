@@ -9,6 +9,7 @@ use App\Domain\Cajas\Data\CashBoxComponents;
 use App\Domain\Cajas\Models\CashBox;
 use App\Domain\Cajas\Models\CashBoxAudit;
 use App\Domain\Cajas\Models\CashBoxSession;
+use App\Domain\Cajas\Services\OpeningSurplusConsent;
 use App\Filament\Pages\Cajas\CashBoxOperations;
 use App\Models\User;
 use Database\Seeders\Cajas\CajasPermissionsSeeder;
@@ -44,7 +45,7 @@ it('rejects incomplete first counts instead of accepting them as the capital ref
         app(OpenCashBoxAction::class)->execute($admin, $access->id, ['balances' => ['bcp' => $amount, 'efectivo' => '0', 'yape' => '0'], 'request_key' => (string) Str::uuid()]);
         $this->fail('Expected exact capital validation');
     } catch (ValidationException $error) {
-        expect($error->errors())->toHaveKey('opening_total');
+        expect($error->errors())->toHaveKey((float) $amount > 16000 ? 'opening_surplus_consent' : 'opening_total');
     }
     $this->assertDatabaseCount('cash_box_sessions', 0);
     $this->assertDatabaseCount('cash_box_receipt_discrepancies', 0);
@@ -150,4 +151,103 @@ it('rolls back the complete rectification if its audit cannot be written', funct
     } finally {
         DB::unprepared('DROP TRIGGER reject_rectification_audit');
     }
+});
+
+it('blocks an undercapitalized prior handover even when the next cashier restores the real capital', function (string $amount) {
+    [$admin, $box, $access] = strictOpeningSetup(false);
+    $previous = app(OpenCashBoxAction::class)->execute($admin, $access->id, ['balances' => ['bcp' => '16000', 'efectivo' => '0', 'yape' => '0'], 'request_key' => (string) Str::uuid()]);
+    $previous->update(['status' => 'CERRADA', 'active_slot' => null, 'closed_at' => now(), 'released_at' => now(), 'handover_balances' => ['bcp' => 1310700, 'efectivo' => 0, 'yape' => 0]]);
+    $next = app(StartCashBoxAccessAction::class)->execute($admin, $box->fresh(), '1234', (string) Str::uuid());
+    $data = ['balances' => ['bcp' => $amount, 'efectivo' => '0', 'yape' => '0'], 'request_key' => (string) Str::uuid()];
+    expect(fn () => app(OpenCashBoxAction::class)->execute($admin, $next->id, $data))->toThrow(ValidationException::class);
+    expect(fn () => app(OpeningSurplusConsent::class)->issue($admin, $next->id, $data))->toThrow(ValidationException::class);
+    $this->assertDatabaseCount('cash_box_sessions', 1);
+    $this->assertDatabaseCount('cash_box_receipt_discrepancies', 0);
+})->with(['13107', '16000', '16001']);
+
+it('records a real initial surplus once only after consent without increasing operational capital', function () {
+    [$admin, $box, $access] = strictOpeningSetup();
+    $data = ['balances' => ['bcp' => '16001', 'efectivo' => '0', 'yape' => '0'], 'request_key' => (string) Str::uuid()];
+    $review = app(OpeningSurplusConsent::class)->issue($admin, $access->id, $data);
+    expect($review['reference'])->toBe(1600000)->and($review['surplus'])->toBe(100);
+    $data['surplus_confirmation'] = $review['token'];
+    $session = app(OpenCashBoxAction::class)->execute($admin, $access->id, $data);
+    expect($session->comparison['opening_surplus_cents'])->toBe(100)->and($session->comparison['surplus_confirmed'])->toBeTrue()
+        ->and($session->operating_capital_cents)->toBe(1600000)->and(array_sum($session->current_balances))->toBe(1600100);
+    expect(app(OpenCashBoxAction::class)->execute($admin, $access->id, $data)->id)->toBe($session->id);
+    $this->assertDatabaseCount('cash_box_receipt_discrepancies', 1);
+});
+
+it('rejects altered expired or forged surplus consent without recording an opening', function (string $change) {
+    [$admin, $box, $access] = strictOpeningSetup();
+    $data = ['balances' => ['bcp' => '16001', 'efectivo' => '0', 'yape' => '0'], 'request_key' => (string) Str::uuid()];
+    $review = app(OpeningSurplusConsent::class)->issue($admin, $access->id, $data);
+    $data['surplus_confirmation'] = $review['token'];
+    if ($change === 'amount') {
+        $data['balances']['bcp'] = '16002';
+    }
+    if ($change === 'request') {
+        $data['request_key'] = (string) Str::uuid();
+    }
+    if ($change === 'forged') {
+        $data['surplus_confirmation'] = 'true';
+    }
+    if ($change === 'expired') {
+        $this->travel(11)->minutes();
+    }
+    expect(fn () => app(OpenCashBoxAction::class)->execute($admin, $access->id, $data))->toThrow(ValidationException::class);
+    $this->assertDatabaseCount('cash_box_sessions', 0);
+    $this->assertDatabaseCount('cash_box_receipt_discrepancies', 0);
+})->with(['amount', 'request', 'forged', 'expired']);
+
+it('requires a visible checked acknowledgement before opening a surplus in the modal', function () {
+    [$admin, $box] = strictOpeningSetup();
+    Filament::setCurrentPanel(Filament::getPanel('inicio'));
+    $this->actingAs($admin);
+    $page = Livewire::test(CashBoxOperations::class)->callTableAction('ingresar', $box, data: ['pin' => '1234', 'request_key' => (string) Str::uuid()])
+        ->set('openingBalances', ['bcp' => '16001', 'efectivo' => '0', 'yape' => '0'])->call('confirmOpening')
+        ->assertActionMounted('confirmOpeningSurplus');
+    expect((string) $page->instance()->getMountedAction()->getModalDescription())->toContain('No aumenta el capital operativo', '1.00');
+    $this->assertDatabaseCount('cash_box_sessions', 0);
+    $page->setActionData(['accept_surplus' => false])->callMountedAction()->assertHasActionErrors(['accept_surplus']);
+    $this->assertDatabaseCount('cash_box_sessions', 0);
+    $page->setActionData(['accept_surplus' => true])->callMountedAction()->assertHasNoActionErrors();
+    $this->assertDatabaseCount('cash_box_sessions', 1);
+    expect(CashBoxSession::sole()->comparison['opening_surplus_cents'])->toBe(100);
+});
+
+it('cancels surplus confirmation without opening or recording a commission', function () {
+    [$admin, $box] = strictOpeningSetup();
+    Filament::setCurrentPanel(Filament::getPanel('inicio'));
+    $this->actingAs($admin);
+    $page = Livewire::test(CashBoxOperations::class)->callTableAction('ingresar', $box, data: ['pin' => '1234', 'request_key' => (string) Str::uuid()])
+        ->set('openingBalances', ['bcp' => '16001', 'efectivo' => '0', 'yape' => '0'])->call('confirmOpening')->assertActionMounted('confirmOpeningSurplus');
+    $page->unmountAction();
+    $this->assertDatabaseCount('cash_box_sessions', 0);
+    $this->assertDatabaseCount('cash_box_receipt_discrepancies', 0);
+});
+
+it('rejects a surplus acknowledgement when the amounts change behind the modal', function () {
+    [$admin, $box] = strictOpeningSetup();
+    Filament::setCurrentPanel(Filament::getPanel('inicio'));
+    $this->actingAs($admin);
+    $page = Livewire::test(CashBoxOperations::class)->callTableAction('ingresar', $box, data: ['pin' => '1234', 'request_key' => (string) Str::uuid()])
+        ->set('openingBalances', ['bcp' => '16001', 'efectivo' => '0', 'yape' => '0'])->call('confirmOpening')->assertActionMounted('confirmOpeningSurplus');
+    $page->set('openingBalances', ['bcp' => '16002', 'efectivo' => '0', 'yape' => '0'])
+        ->setActionData(['accept_surplus' => true])->callMountedAction()->assertHasActionErrors(['opening_surplus_consent']);
+    $this->assertDatabaseCount('cash_box_sessions', 0);
+});
+
+it('calculates confirmed surplus above the handover including its existing commissions rather than above bare capital', function () {
+    [$admin, $box, $access] = strictOpeningSetup(false);
+    $previous = app(OpenCashBoxAction::class)->execute($admin, $access->id, ['balances' => ['bcp' => '16000', 'efectivo' => '0', 'yape' => '0'], 'request_key' => (string) Str::uuid()]);
+    $previous->update(['status' => 'CERRADA', 'active_slot' => null, 'closed_at' => now(), 'released_at' => now(), 'handover_balances' => ['bcp' => 1600000, 'efectivo' => 500, 'yape' => 0]]);
+    $next = app(StartCashBoxAccessAction::class)->execute($admin, $box->fresh(), '1234', (string) Str::uuid());
+    $data = ['balances' => ['bcp' => '16006', 'efectivo' => '0', 'yape' => '0'], 'request_key' => (string) Str::uuid()];
+    $review = app(OpeningSurplusConsent::class)->issue($admin, $next->id, $data);
+    expect($review['reference'])->toBe(1600500)->and($review['surplus'])->toBe(100);
+    $data['surplus_confirmation'] = $review['token'];
+    $opened = app(OpenCashBoxAction::class)->execute($admin, $next->id, $data);
+    expect($opened->comparison['opening_surplus_cents'])->toBe(100)->and(array_sum($opened->current_balances))->toBe(1600600)
+        ->and($opened->operating_capital_cents)->toBe(1600000);
 });

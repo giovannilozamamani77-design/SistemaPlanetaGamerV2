@@ -11,6 +11,7 @@ use App\Domain\Cajas\Models\CashBoxConfiguration;
 use App\Domain\Cajas\Models\CashBoxSession;
 use App\Domain\Cajas\Queries\CashBoxOperatingCapital;
 use App\Domain\Cajas\Services\CashBoxScheduleSafety;
+use App\Domain\Cajas\Services\OpeningSurplusConsent;
 use App\Domain\Configuraciones\Queries\PersonnelRules;
 use App\Domain\ControlHorario\Actions\ProcessCashBoxScheduleEventAction;
 use App\Domain\ControlHorario\Models\CashBoxScheduleEvent;
@@ -36,7 +37,7 @@ class OpenCashBoxAction
         if ($access->user_id !== $user->id) {
             throw new AuthorizationException;
         }
-        $v = Validator::make($data, ['balances' => ['required', 'array:'.implode(',', array_keys($access->expected_balances))],
+        $v = Validator::make($data, ['surplus_confirmation' => ['nullable', 'string'], 'balances' => ['required', 'array:'.implode(',', array_keys($access->expected_balances))],
             'second_balances' => ['sometimes', 'array:'.implode(',', array_keys($access->expected_balances))],
             'cash_count' => ['nullable', 'array'], 'cash_count.quantities' => ['sometimes', 'array'], 'cash_count.packed_amounts_cents' => ['sometimes', 'array'],
             'use_cash_count' => ['prohibited'], 'cash_counts' => ['prohibited'], 'packed_amounts' => ['prohibited'],
@@ -123,16 +124,22 @@ class OpenCashBoxAction
                 throw ValidationException::withMessages(['reason' => 'La entrega anterior cambió. Ingresa nuevamente para recibir los saldos vigentes.']);
             }
             $firstCount = ! $previous && $config->first_count_pending;
-            $requiredTotal = $previous ? array_sum($access->expected_balances)
-                : app(CashBoxOperatingCapital::class)->amount($box->id, $config->base_capital_cents) + array_sum(app(ReservedCashBoxFunds::class)->forBox($box->id));
-            if (array_sum($balances) !== $requiredTotal) {
-                throw ValidationException::withMessages(['opening_total' => 'No se puede abrir: el total debe ser exactamente Bs '.Bolivianos::format($requiredTotal).($previous ? ', según la entrega del cierre anterior.' : ', según el capital configurado.').' Completa o corrige los saldos antes de abrir.']);
+            $capitalFloor = app(CashBoxOperatingCapital::class)->amount($box->id, $config->base_capital_cents) + array_sum(app(ReservedCashBoxFunds::class)->forBox($box->id));
+            if ($previous && array_sum($access->expected_balances) < $capitalFloor) {
+                throw ValidationException::withMessages(['opening_total' => 'La entrega anterior está por debajo del capital operativo. Administración debe rectificarla antes de abrir; completar el capital no se registrará como sobrante.']);
+            }
+            $requiredTotal = $previous ? array_sum($access->expected_balances) : $capitalFloor;
+            if (array_sum($balances) < $requiredTotal) {
+                throw ValidationException::withMessages(['opening_total' => 'No se puede abrir por debajo de Bs '.Bolivianos::format($requiredTotal).'. Respeta el capital operativo y la entrega anterior.']);
+            }
+            if (! $previous && ! $firstCount && array_sum($access->expected_balances) !== $capitalFloor) {
+                throw ValidationException::withMessages(['opening_total' => 'Administración debe corregir la referencia inicial para que coincida con el capital operativo.']);
+            }
+            $difference = array_sum($balances) - $requiredTotal;
+            if ($difference > 0) {
+                app(OpeningSurplusConsent::class)->verify($v['surplus_confirmation'] ?? null, $fresh, $access->id, $v['request_key'], $balances, $requiredTotal, $capitalFloor);
             }
             $expected = $firstCount ? $balances : $access->expected_balances;
-            if (array_sum($balances) !== array_sum($expected)) {
-                throw ValidationException::withMessages(['opening_total' => 'La referencia de apertura no coincide con el capital configurado. Administración debe revisar la configuración antes de abrir.']);
-            }
-            $difference = array_sum($balances) - array_sum($expected);
             if ($difference !== 0 && $reason === '') {
                 $reason = $difference < 0 ? 'Faltante detectado al recibir la caja.' : 'Sobrante detectado al recibir la caja.';
             }
@@ -140,12 +147,13 @@ class OpenCashBoxAction
             $components = [];
             foreach ($balances as $code => $actual) {
                 $delta = $actual - $expected[$code];
-                $components[$code] = ['expected' => $expected[$code], 'actual' => $actual, 'difference' => $delta, 'second' => $second[$code] ?? null];
+                $components[$code] = ['expected' => $firstCount && $difference > 0 ? null : $expected[$code], 'actual' => $actual, 'difference' => $firstCount && $difference > 0 ? null : $delta, 'second' => $second[$code] ?? null];
             }
             if ($difference !== 0 && mb_strlen($reason) < 3) {
                 throw ValidationException::withMessages(['reason' => 'Describe la diferencia total encontrada al recibir la caja.']);
             }
             $comparison = ['initial_count' => $firstCount, 'difference_cents' => $difference, 'threshold_cents' => $threshold, 'components' => $components, 'reason' => $reason,
+                'reference_total_cents' => $requiredTotal, 'surplus_confirmed' => $difference > 0, 'initial_reference_is_total_only' => $firstCount,
                 'redistribution_only' => $difference === 0 && $balances !== $expected,
                 'count_details' => ['method' => $count === null ? 'MANUAL' : 'ARQUEO', 'cash_count' => $count]];
             $comparison['schedule_capture_requested'] = $captureSchedule;

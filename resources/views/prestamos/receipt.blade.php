@@ -10,7 +10,9 @@
 </head>
 <body>
 @foreach(['Cliente', 'Archivo'] as $copy)
+
     @if(!$loop->first)<div class="cut"></div>@endif
+    @if($import = $detail['terms_snapshot']['historical_import'] ?? null)<p><strong>REGISTRO HISTÓRICO IMPORTADO</strong> · Referencia anterior: {{ $import['reference'] }} · Importado por {{ $import['imported_by'] }} el {{ \Carbon\CarbonImmutable::parse($import['imported_at'])->timezone('America/La_Paz')->format('d/m/Y H:i') }}. Este comprobante conserva un hecho del sistema anterior; no acredita una nueva entrega de dinero ni una transferencia bancaria actual.</p>@endif
     <table class="copy" aria-label="Copia {{ $copy }}"><tbody>
         <tr><td class="copy-content">
             <table class="heading"><tr>

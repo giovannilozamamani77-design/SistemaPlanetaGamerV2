@@ -19,6 +19,7 @@ use Carbon\CarbonImmutable;
 use Database\Seeders\Prestamos\LoanPermissionsSeeder;
 use Database\Seeders\Usuarios\UsuariosPermissionsSeeder;
 use Filament\Facades\Filament;
+use Filament\Forms\Components\Select;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Str;
@@ -502,4 +503,23 @@ it('C242 applies the manual permission to existing cashier roles idempotently wi
     expect(Loan::count())->toBe(0)->and(LoanFund::sole()->balance_cents)->toBe(100000);
     $cashier->restrictedPermissions()->attach(Permission::findByName('prestamos.condiciones.manuales'));
     expect(Gate::forUser($cashier->fresh())->allows('manualTerms', Loan::class))->toBeFalse();
+});
+
+it('offers the complete active object catalog beyond fifty choices and selects the final type', function () {
+    [$admin, $cashier] = registrationFixture();
+    $last = null;
+    for ($index = 1; $index <= 60; $index++) {
+        $last = app(SaveLoanTypeAction::class)->execute($admin, ['name' => sprintf('Objeto %02d', $index), 'rate' => '15', 'is_active' => true, 'expected_revision' => 0, 'request_key' => (string) Str::uuid()]);
+    }
+    $inactive = app(SaveLoanTypeAction::class)->execute($admin, ['name' => 'Objeto inactivo', 'rate' => '15', 'is_active' => false, 'expected_revision' => 0, 'request_key' => (string) Str::uuid()]);
+    $page = Livewire::test(RegisterLoan::class);
+    $page->assertFormFieldExists('type_id', function (Select $field) use ($last, $inactive): bool {
+        expect($field->getOptions())->toHaveCount(61)->toHaveKey($last->id)->not->toHaveKey($inactive->id);
+        expect($field->getOptionsLimit())->toBe(0);
+        expect($field->getExtraFieldWrapperAttributes()['class'])->toContain('fi-fixed-positioning-context');
+
+        return true;
+    });
+    $page->set('data.type_id', $last->id)->assertSet('data.type_revision', $last->revision);
+    expect(Loan::count())->toBe(0);
 });

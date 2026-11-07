@@ -1,4 +1,7 @@
 <div class="pg-loan-record">
+    @if($import = $detail['terms_snapshot']['historical_import'] ?? null)
+        <section class="pg-loan-record-card"><h3>Préstamo importado del sistema anterior</h3><p>Referencia anterior: <strong>{{ $import['reference'] }}</strong>. Importado por {{ $import['imported_by'] }} el {{ \Carbon\CarbonImmutable::parse($import['imported_at'])->timezone('America/La_Paz')->format('d/m/Y H:i') }}.</p><p>Ajuste neto registrado en el fondo: Bs {{ \App\Support\Bolivianos::format($import['fund_delta_cents']) }}. Se conservan las fechas y el cajero originales.</p></section>
+    @endif
     <div class="pg-loan-record-parties">
         <section class="pg-loan-record-card">
             <h3>Cliente</h3>

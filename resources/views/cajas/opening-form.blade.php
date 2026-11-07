@@ -1,4 +1,4 @@
-<x-filament::section :heading="$workspace['box']" :description="$workspace['first_count'] ? 'Completa los saldos hasta alcanzar exactamente el capital configurado.' : 'El total debe coincidir exactamente con la entrega del cierre anterior.'">
+<x-filament::section :heading="$workspace['box']" :description="$workspace['first_count'] ? 'Completa al menos el capital configurado. Un sobrante requiere confirmación.' : 'Respeta la entrega anterior y el capital operativo. Un sobrante requiere confirmación.'">
     @include('cajas.previous-handover', ['previous' => $this->previousHandover])
     <div class="space-y-5" x-on:keydown.enter.prevent.stop>
         <h2 class="text-sm font-semibold">Saldos de apertura</h2>
@@ -30,11 +30,12 @@
                 </p>
             </div>
         </div>
+        @if ($workspace['opening_reference_below_capital'])<p class="text-sm text-danger-600" role="alert">La entrega anterior está por debajo del capital operativo. Administración debe rectificarla antes de abrir; completarla no es un sobrante.</p>@endif
         @if ($errors->any())
             <p class="text-sm text-danger-600" role="alert">{{ $errors->first() }}</p>
         @endif
         <div class="flex flex-wrap items-center gap-3">
-            <x-filament::button type="button" wire:click="confirmOpening" x-on:keydown.enter.prevent.stop :disabled="! $this->openingPreview['valid'] || $this->openingPreview['total_cents'] !== $workspace['opening_required_total']" wire:loading.attr="disabled" wire:target="confirmOpening">Abrir mi caja</x-filament::button>
+            <x-filament::button type="button" wire:click="confirmOpening" x-on:keydown.enter.prevent.stop :disabled="! $this->openingPreview['valid'] || $this->openingPreview['total_cents'] < $workspace['opening_required_total'] || $workspace['opening_reference_below_capital']" wire:loading.attr="disabled" wire:target="confirmOpening">Abrir mi caja</x-filament::button>
             {{ $this->salirDeVistaAction }}
         </div>
     </div>

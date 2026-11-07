@@ -38,7 +38,7 @@ class LoanCapitalHistory extends Page implements HasTable
         return $table->query(app(LoanQuery::class)->fundMovements(auth()->user()))->columns([
             TextColumn::make('created_at')->label('Fecha y hora')->dateTime('d/m/Y H:i', timezone: 'America/La_Paz'),
             TextColumn::make('loan_id')->label('Préstamo'),
-            TextColumn::make('kind')->label('Movimiento')->formatStateUsing(fn ($state) => ['INITIAL' => 'Saldo inicial', 'IN' => 'Aporte', 'OUT' => 'Retiro', 'DISBURSEMENT' => 'Capital prestado', 'ANNULMENT' => 'Capital restablecido por anulación', 'SETTLEMENT' => 'Pago completo y entrega', 'OBJECT_EXPENSE' => 'Gasto de objeto perdido', 'OBJECT_SALE' => 'Venta de objeto perdido', 'TERM_PAYMENT' => 'Renovación: interés y multa'][$state] ?? $state),
+            TextColumn::make('kind')->label('Movimiento')->formatStateUsing(fn ($state) => ['HISTORICAL_IMPORT' => 'Ajuste por préstamo antiguo', 'INITIAL' => 'Saldo inicial', 'IN' => 'Aporte', 'OUT' => 'Retiro', 'DISBURSEMENT' => 'Capital prestado', 'ANNULMENT' => 'Capital restablecido por anulación', 'SETTLEMENT' => 'Pago completo y entrega', 'OBJECT_EXPENSE' => 'Gasto de objeto perdido', 'OBJECT_SALE' => 'Venta de objeto perdido', 'TERM_PAYMENT' => 'Renovación: interés y multa'][$state] ?? $state),
             TextColumn::make('delta_cents')->label('Importe')->formatStateUsing(fn ($state) => ($state < 0 ? '−' : '+').' Bs '.Bolivianos::formatCompact(abs($state))),
             TextColumn::make('after_cents')->label('Disponible posterior')->formatStateUsing(fn ($state) => 'Bs '.Bolivianos::formatCompact($state)),
             TextColumn::make('user.name')->label('Registró'), TextColumn::make('reference')->label('Referencia'),

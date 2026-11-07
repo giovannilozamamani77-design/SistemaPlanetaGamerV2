@@ -6,7 +6,10 @@ use App\Domain\Cajas\Actions\OpenCashBoxAction;
 use App\Domain\Cajas\Calculators\CashBoxClosingBalancePreview;
 use App\Domain\Cajas\Queries\CashBoxPreviousHandoverQuery;
 use App\Domain\Cajas\Queries\LateOpeningNoticeQuery;
+use App\Domain\Cajas\Services\OpeningSurplusConsent;
 use App\Support\Bolivianos;
+use Filament\Actions\Action;
+use Filament\Forms\Components\Checkbox;
 use Filament\Notifications\Notification;
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
@@ -20,8 +23,33 @@ trait InteractsWithCashBoxOpening
     #[Locked]
     public ?string $openingKey = null;
 
+    #[Locked]
+    public ?string $openingSurplusToken = null;
+
+    #[Locked]
+    public array $openingSurplusReview = [];
+
+    public function confirmOpeningSurplusAction(): Action
+    {
+        return Action::make('confirmOpeningSurplus')->modalHeading('Atención: registrarás un sobrante de apertura')->color('warning')
+            ->modalDescription(fn (): string => 'Contaste Bs '.Bolivianos::format($this->openingSurplusReview['total'] ?? 0).'. Se esperaban Bs '.Bolivianos::format($this->openingSurplusReview['reference'] ?? 0).'. La diferencia de Bs '.Bolivianos::format($this->openingSurplusReview['surplus'] ?? 0).' se registrará como sobrante, se mostrará junto a las comisiones y entrará en la liquidación. No aumenta el capital operativo. Cancela si es un error de digitación.')
+            ->schema([Checkbox::make('accept_surplus')->label('Entiendo y confirmo que este sobrante es real.')->accepted()->required()])
+            ->extraModalWindowAttributes(['x-on:keydown.enter.prevent.stop' => ''])
+            ->modalSubmitActionLabel('Confirmar sobrante y abrir caja')->modalCancelActionLabel('Volver a corregir')
+            ->action(function (): void {
+                if (! $this->openingSurplusToken) {
+                    throw ValidationException::withMessages(['opening_surplus_consent' => 'Vuelve a revisar los importes de apertura.']);
+                }
+                $this->persistOpening($this->openingSurplusToken);
+                $this->openingSurplusToken = null;
+                $this->openingSurplusReview = [];
+            });
+    }
+
     private function initializeOpening(): void
     {
+        $this->openingSurplusToken = null;
+        $this->openingSurplusReview = [];
         $this->resetCashCount();
         $this->openingBalances = [];
         $this->openingKey = null;
@@ -46,9 +74,23 @@ trait InteractsWithCashBoxOpening
     public function confirmOpening(): void
     {
         abort_unless($this->accessId && $this->openingKey, 403);
+        if ($this->openingPreview['valid'] && $this->openingPreview['total_cents'] > $this->workspace['opening_required_total']) {
+            $review = app(OpeningSurplusConsent::class)->issue(auth()->user(), $this->accessId, ['balances' => $this->openingBalances, 'request_key' => $this->openingKey]);
+            $this->openingSurplusToken = $review['token'];
+            unset($review['token']);
+            $this->openingSurplusReview = $review;
+            $this->mountAction('confirmOpeningSurplus');
+
+            return;
+        }
+        $this->persistOpening();
+    }
+
+    private function persistOpening(?string $surplusToken = null): void
+    {
         try {
             $session = app(OpenCashBoxAction::class)->execute(auth()->user(), $this->accessId, [
-                'balances' => $this->openingBalances, 'request_key' => $this->openingKey, 'cash_count' => $this->acceptedCashCount,
+                'surplus_confirmation' => $surplusToken, 'balances' => $this->openingBalances, 'request_key' => $this->openingKey, 'cash_count' => $this->acceptedCashCount,
             ]);
         } catch (ValidationException $exception) {
             throw ValidationException::withMessages(collect($exception->errors())->mapWithKeys(

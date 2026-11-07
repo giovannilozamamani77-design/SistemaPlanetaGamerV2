@@ -134,7 +134,14 @@ function c2Open(User $user, CashBoxAccess $access, array $replace = []): CashBox
 function c2LegacyReceipt(User $user, CashBoxAccess $access, array $replace = []): CashBoxSession
 {
     return DB::transaction(function () use ($user, $access, $replace): CashBoxSession {
-        $session = c2Open($user, $access);
+        $config = CashBoxConfiguration::findOrFail($access->configuration_id);
+        $previous = CashBoxSession::where('cash_box_id', $access->cash_box_id)->latest('id')->first();
+        $session = CashBoxSession::create(['cash_box_id' => $access->cash_box_id, 'user_id' => $user->id, 'configuration_id' => $config->id,
+            'previous_session_id' => $previous?->id, 'scheduled_workday_id' => $access->scheduled_workday_id, 'status' => 'ABIERTA', 'active_slot' => 1,
+            'base_capital_cents' => $config->base_capital_cents, 'operating_capital_cents' => $config->base_capital_cents,
+            'opening_balances' => $access->expected_balances, 'expected_balances' => $access->expected_balances, 'current_balances' => $access->expected_balances,
+            'comparison' => [], 'opened_at' => now(), 'request_key' => (string) Str::uuid(), 'payload_hash' => hash('sha256', 'legacy fixture')]);
+        $access->update(['cash_box_session_id' => $session->id]);
         $balances = $session->opening_balances;
         foreach ($replace['balances'] ?? [] as $code => $value) {
             $balances[$code] = Bolivianos::cents($value);
@@ -364,7 +371,7 @@ it('uses released handover balances without exposing the previous cashier or ass
     $previous = c2Open($former, c2Access($former, $box));
     // Arrange the released-close contract; the closing workflow belongs to the next increment.
     $previous->update(['status' => 'CERRADA_CON_INCIDENCIAS', 'active_slot' => null, 'closed_at' => now(), 'released_at' => now(),
-        'handover_balances' => ['bcp' => 1480000, 'efectivo' => 200000, 'yape' => 300000]]);
+        'handover_balances' => ['bcp' => 1480000, 'efectivo' => 220000, 'yape' => 300000]]);
     $next = c2Person();
     $access = c2Access($next, $box);
     $session = c2Open($next, $access);

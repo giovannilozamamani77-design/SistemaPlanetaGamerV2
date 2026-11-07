@@ -21,6 +21,11 @@ class LoanPolicy
         return $this->allowed($u, 'prestamos.registrar');
     }
 
+    public function importHistorical(User $u): bool
+    {
+        return $u->hasAnyRole(['administrador', 'encargado']) && $this->manualTerms($u) && $this->viewAll($u) && $this->viewAny($u);
+    }
+
     public function annul(User $u): bool
     {
         return $u->hasRole('administrador') && $this->allowed($u, 'prestamos.anular');

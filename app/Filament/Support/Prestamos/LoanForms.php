@@ -64,7 +64,7 @@ class LoanForms
                 Hidden::make('recognized_client')->dehydrated(false), View::make('prestamos.client-status')->visible(fn (Get $get) => filled($get('recognized_client')))->viewData(fn (Get $get) => ['recognized' => $get('recognized_client')])->columnSpanFull(),
             ])->columns(['default' => 1, 'md' => 3]),
             Section::make('Objeto en garantía')->icon('heroicon-o-archive-box')->extraAttributes(['class' => 'pg-loan-card pg-loan-card-object'])->schema([
-                Select::make('type_id')->label('Tipo de objeto')->options(fn () => app(LoanQuery::class)->types(auth()->user())->where('is_active', true)->orderBy('name')->pluck('name', 'id'))->required()->searchable()->position('bottom')->live()->afterStateUpdated(fn ($state, Set $set) => $set('type_revision', LoanObjectType::find($state)?->revision)),
+                Select::make('type_id')->label('Tipo de objeto')->options(fn () => app(LoanQuery::class)->types(auth()->user())->where('is_active', true)->orderBy('name')->pluck('name', 'id'))->required()->searchable()->optionsLimit(0)->extraFieldWrapperAttributes(['class' => 'fi-fixed-positioning-context'])->live()->afterStateUpdated(fn ($state, Set $set) => $set('type_revision', LoanObjectType::find($state)?->revision)),
                 Hidden::make('type_revision'), Textarea::make('description')->label('Descripción del objeto')->rows(2)->required()->maxLength(2000),
                 Hidden::make('serial'), Hidden::make('condition'), Hidden::make('accessories'), View::make('prestamos.object-details-button')->columnSpanFull(),
             ])->columns(2),

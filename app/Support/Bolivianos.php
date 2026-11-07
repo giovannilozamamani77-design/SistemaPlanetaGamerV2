@@ -22,6 +22,8 @@ class Bolivianos
 
     public static function format(int $cents): string
     {
-        return intdiv($cents, 100).'.'.str_pad((string) ($cents % 100), 2, '0', STR_PAD_LEFT);
+        $absolute = abs($cents);
+
+        return ($cents < 0 ? '-' : '').intdiv($absolute, 100).'.'.str_pad((string) ($absolute % 100), 2, '0', STR_PAD_LEFT);
     }
 }
