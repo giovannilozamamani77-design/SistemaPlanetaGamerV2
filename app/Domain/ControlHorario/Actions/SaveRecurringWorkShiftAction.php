@@ -24,8 +24,8 @@ class SaveRecurringWorkShiftAction
 
         return DB::transaction(function () use ($admin, $v): RecurringWorkShift {
             $user = User::whereKey($v['user_id'])->lockForUpdate()->firstOrFail();
-            if (! $user->is_active || ! $user->hasRole('cajera')) {
-                throw ValidationException::withMessages(['user_id' => 'Selecciona una cajera activa.']);
+            if (! $user->is_active || ! $user->hasAnyRole(['cajera', 'encargado'])) {
+                throw ValidationException::withMessages(['user_id' => 'Selecciona una cajera o encargada activa.']);
             }
             if ($existing = RecurringWorkShift::where('request_key', $v['request_key'])->first()) {
                 if ($existing->created_by !== $admin->id || $existing->user_id !== $user->id || $existing->period !== $v['period'] || $existing->enabled !== (bool) $v['enabled']) {

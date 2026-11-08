@@ -29,8 +29,8 @@ class PrepareDatedWorkdayAction
 
         return DB::transaction(function () use ($actor, $owner, $date, $period): ScheduledWorkday {
             $owner = User::whereKey($owner->id)->lockForUpdate()->firstOrFail();
-            if (! $owner->is_active || ! $owner->hasRole('cajera')) {
-                throw ValidationException::withMessages(['work_date' => 'Selecciona una cajera activa.']);
+            if (! $owner->is_active || ! $owner->hasAnyRole(['cajera', 'encargado'])) {
+                throw ValidationException::withMessages(['work_date' => 'Selecciona una cajera o encargada activa.']);
             }
             if ($day = ScheduledWorkday::where('user_id', $owner->id)->where('work_date', $date)->where('period', $period)->first()) {
                 return $day;

@@ -50,7 +50,7 @@ class ShiftCoverages extends Page implements HasTable
 
     protected function getHeaderActions(): array
     {
-        $people = fn () => User::role('cajera')->where('is_active', true)->orderBy('name')->pluck('name', 'id')->all();
+        $people = fn () => User::role(['cajera', 'encargado'])->where('is_active', true)->orderBy('name')->pluck('name', 'id')->all();
 
         return [PersonnelTable::modal(Action::make('authorizeCoverage'))->label('Autorizar cobertura')->icon('heroicon-o-user-plus')->modalHeading('Cobertura de un solo día')
             ->modalDescription('La sustituta usa su propio PIN y sesión. La caja debe estar disponible. Si cubre mañana y pertenece a tarde, puede terminar la cobertura o continuar hasta tarde; su crédito no se duplica.')

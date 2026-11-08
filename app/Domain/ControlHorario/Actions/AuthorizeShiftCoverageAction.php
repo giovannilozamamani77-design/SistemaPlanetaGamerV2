@@ -37,8 +37,8 @@ class AuthorizeShiftCoverageAction
             }
             $source = app(PrepareDatedWorkdayAction::class)->execute($admin, User::findOrFail($v['source_user_id']), $v['work_date'], $v['period']);
             $receiver = User::findOrFail($v['user_id']);
-            if (! $receiver->is_active || ! $receiver->hasRole('cajera')) {
-                throw ValidationException::withMessages(['user_id' => 'Selecciona una cajera activa.']);
+            if (! $receiver->is_active || ! $receiver->hasAnyRole(['cajera', 'encargado'])) {
+                throw ValidationException::withMessages(['user_id' => 'Selecciona una cajera o encargada activa.']);
             }
             $start = CarbonImmutable::parse($v['work_date'].' '.$v['starts_time'], 'America/La_Paz')->utc();
             if ($start < now('UTC')->toImmutable()->startOfMinute() || $start < $source->starts_at || $start >= $source->ends_at) {

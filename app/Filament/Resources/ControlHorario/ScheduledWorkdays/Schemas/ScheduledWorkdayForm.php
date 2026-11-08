@@ -17,7 +17,7 @@ class ScheduledWorkdayForm
     public static function configure(Schema $schema): Schema
     {
         return $schema->components([Section::make('Turno excepcional de un solo día')->description('Solo para excepciones. El turno habitual de lunes a sábado se configura una vez en Personal → Turnos asignados.')->columns(['default' => 1, 'md' => 2])->columnSpanFull()->schema([
-            Select::make('user_id')->label('Cajera')->helperText('Persona que debe trabajar este turno.')->required()->searchable()->options(fn (): array => User::role('cajera')->where('is_active', true)->orderBy('name')->pluck('name', 'id')->all()),
+            Select::make('user_id')->label('Cajera o encargada')->helperText('Persona que debe trabajar este turno.')->required()->searchable()->options(fn (): array => User::role(['cajera', 'encargado'])->where('is_active', true)->orderBy('name')->pluck('name', 'id')->all()),
             DatePicker::make('work_date')->label('Fecha del turno')->helperText('Día en que debe trabajar, no la fecha en que llenas este formulario. Ejemplo: 22/10/2026 para trabajar el 22 de octubre.')->required(),
             Select::make('period')->label('Turno')->helperText('Mañana o tarde. Puedes asignar ambos por separado para la misma fecha.')->options(['manana' => 'Mañana', 'tarde' => 'Tarde'])->required()->live()
                 ->afterStateUpdated(function (?string $state, Set $set): void {

@@ -202,17 +202,17 @@ it('blocks attendance when the account is disabled immediately after PIN verific
     expect(fn () => (new RegisterAttendanceAction($verifier))->execute($cashier, '1234'))->toThrow(AuthorizationException::class);
     expect(Attendance::count())->toBe(0);
 });
-it('rejects inactive or non cashier workday targets', function (string $kind) {
+it('rejects inactive staff and unsupported workday roles', function (string $kind) {
     [$admin,$cashier] = attendancePeople();
     if ($kind === 'inactive') {
         $cashier->is_active = false;
         $cashier->save();
     } else {
-        $cashier->syncRoles(['encargado']);
+        $cashier->syncRoles(['administrador']);
     }
     expect(fn () => attendanceSchedule($admin, $cashier))->toThrow(ValidationException::class);
     expect(ScheduledWorkday::count())->toBe(0);
-})->with(['inactive', 'encargado']);
+})->with(['inactive', 'administrador']);
 it('does not carry a PIN registration into a future day or finished workday', function () {
     [$admin,$cashier] = attendancePeople();
     attendanceSchedule($admin, $cashier);
@@ -222,8 +222,9 @@ it('does not carry a PIN registration into a future day or finished workday', fu
     expect(Attendance::count())->toBe(0);
 });
 
-it('C133 repeats an assigned shift Monday to Saturday without manual dates or Sunday workdays', function () {
+it('C133 repeats an assigned shift Monday to Saturday without manual dates or Sunday workdays', function (string $role) {
     [$admin, $cashier] = attendancePeople();
+    $cashier->syncRoles([$role]);
     config(['cajas.schedule_controls_enabled' => true]);
     $this->travelTo(Carbon::parse('2026-10-19 11:00:00', 'UTC'));
     app(SaveRecurringWorkShiftAction::class)->execute($admin, [
@@ -238,7 +239,7 @@ it('C133 repeats an assigned shift Monday to Saturday without manual dates or Su
     $this->travelTo(Carbon::parse('2026-10-25 12:00:00', 'UTC'));
     expect(app(RegisterAttendanceAction::class)->execute($cashier, '1234'))->toBeNull();
     expect(ScheduledWorkday::count())->toBe(4)->and(Attendance::count())->toBe(4);
-});
+})->with(['cajera', 'encargado']);
 
 it('C133 preserves an existing dated exception and does not generate past days or work while paused', function () {
     [$admin, $cashier] = attendancePeople();

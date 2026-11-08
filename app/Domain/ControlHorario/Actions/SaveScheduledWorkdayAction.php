@@ -41,8 +41,8 @@ class SaveScheduledWorkdayAction
 
         return DB::transaction(function () use ($admin, $target, $v, $start, $end): ScheduledWorkday {
             $user = User::whereKey($v['user_id'])->lockForUpdate()->firstOrFail();
-            if (! $user->is_active || ! $user->hasRole('cajera')) {
-                throw ValidationException::withMessages(['user_id' => 'Selecciona una cajera activa.']);
+            if (! $user->is_active || ! $user->hasAnyRole(['cajera', 'encargado'])) {
+                throw ValidationException::withMessages(['user_id' => 'Selecciona una cajera o encargada activa.']);
             }
             $record = $target ? ScheduledWorkday::whereKey($target->id)->lockForUpdate()->firstOrFail() : new ScheduledWorkday;
             if ($record->exists && ($record->attendance()->exists() || $record->starts_at <= now())) {

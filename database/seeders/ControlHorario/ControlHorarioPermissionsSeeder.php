@@ -13,7 +13,7 @@ class ControlHorarioPermissionsSeeder extends Seeder
     {
         $assignments = [
             'controlhorario.ver_propios' => ['administrador', 'encargado', 'cajera'],
-            'controlhorario.asistencia.registrar' => ['cajera'],
+            'controlhorario.asistencia.registrar' => ['cajera', 'encargado'],
             'controlhorario.ver_todos' => ['administrador'],
             'controlhorario.programar' => ['administrador'],
         ];

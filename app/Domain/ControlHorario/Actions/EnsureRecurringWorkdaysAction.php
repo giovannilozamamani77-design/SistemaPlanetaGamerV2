@@ -24,7 +24,7 @@ class EnsureRecurringWorkdaysAction
         }
         DB::transaction(function () use ($actor, $instant, $local, $forAbsences): void {
             $user = User::whereKey($actor->id)->lockForUpdate()->firstOrFail();
-            if (! $user->is_active || ! $user->hasRole('cajera')) {
+            if (! $user->is_active || ! $user->hasAnyRole(['cajera', 'encargado'])) {
                 return;
             }
             $assignments = RecurringWorkShift::where('user_id', $user->id)->effectiveAt($instant)->get();

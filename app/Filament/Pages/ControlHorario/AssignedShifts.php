@@ -53,7 +53,7 @@ class AssignedShifts extends Page implements HasTable
         return [PersonnelTable::modal(Action::make('assignShift'))->label('Asignar turno')->icon(Heroicon::OutlinedPlus)
             ->modalHeading('Asignar turno habitual')->modalDescription('Se repetirá de lunes a sábado hasta que lo desactives. Los horarios se toman de Configuraciones → Control de horario. No genera faltas de fechas anteriores.')
             ->schema([Section::make('Cajera y turno')->columns(2)->schema([
-                Select::make('user_id')->label('Cajera')->options(fn () => User::role('cajera')->where('is_active', true)->orderBy('name')->pluck('name', 'id')->all())->searchable()->required(),
+                Select::make('user_id')->label('Cajera o encargada')->options(fn () => User::role(['cajera', 'encargado'])->where('is_active', true)->orderBy('name')->pluck('name', 'id')->all())->searchable()->required(),
                 Select::make('period')->label('Turno habitual')->options(['manana' => 'Mañana', 'tarde' => 'Tarde'])->required()->helperText('Para ambos turnos, asigna mañana y tarde por separado.'),
                 Hidden::make('enabled')->default(true), Hidden::make('expected_version_id')->default(0), Hidden::make('request_key')->default(fn () => (string) Str::uuid()),
             ])])->action(function (array $data): void {
