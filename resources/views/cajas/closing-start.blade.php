@@ -27,13 +27,23 @@
                 <x-filament::button size="lg" icon="heroicon-o-arrow-right" icon-position="after" wire:click="nextStep" wire:loading.attr="disabled" :disabled="!isset($this->context['shifts'][$period ?? ''])">Siguiente</x-filament::button>
             </div>
         @elseif ($step === 2)
-            <div class="pg-closing-balances-layout">
+            <div class="pg-closing-balances-layout" x-data="{
+                money(value) {
+    const raw = String(value ?? '');
+    if (raw === '') return 0;
+    if (!/^[0-9]{1,9}(?:[.,][0-9]{1,2})?$/.test(raw)) return NaN;
+    const [whole, cents = ''] = raw.replace(',', '.').split('.');
+    return Number(whole) * 100 + Number(cents.padEnd(2, '0'));
+}, format(cents) { return (cents / 100).toFixed(2); },
+                get total() { return Object.values($wire.balances).reduce((sum, value) => sum + this.money(value), 0); },
+                get difference() { return this.total - {{ $this->preview['expected_cents'] }}; }
+            }">
                 <div class="pg-closing-balances-fields">
                     @foreach ($this->context['accounts'] as $code => $account)
                         <div class="pg-closing-balance-field {{ $code === 'efectivo' ? 'is-cash' : '' }}">
                             <label for="closing-balance-{{ $code }}"><x-filament::icon :icon="\App\Filament\Support\Cajas\CashBoxComponentIcon::for($code, $account)" />{{ $code === 'efectivo' ? 'Efectivo final' : $account['name'].' final' }}</label>
                             <div class="pg-closing-cash-input-row">
-                                <x-filament::input.wrapper prefix="Bs"><x-filament::input :id="'closing-balance-'.$code" type="text" inputmode="decimal" autocomplete="off" placeholder="0.00" :aria-label="$code === 'efectivo' ? 'Efectivo final' : $account['name'].' final'" wire:model.live.debounce.150ms="balances.{{ $code }}" /></x-filament::input.wrapper>
+                                <x-filament::input.wrapper prefix="Bs"><x-filament::input :id="'closing-balance-'.$code" type="text" inputmode="decimal" autocomplete="off" placeholder="0.00" :aria-label="$code === 'efectivo' ? 'Efectivo final' : $account['name'].' final'" wire:model="balances.{{ $code }}" /></x-filament::input.wrapper>
                                 @if ($code === 'efectivo')<x-filament::button size="sm" icon="heroicon-o-calculator" wire:click="openCashCount" wire:loading.attr="disabled" wire:target="openCashCount">Realizar arqueo</x-filament::button>@endif
                             </div>
                             @if ($code === 'efectivo')<small class="pg-closing-count-status">{{ $acceptedCashCount !== null ? 'Con arqueo. Si cambias el efectivo, se descarta este detalle.' : 'Sin arqueo · Opcional, puedes ingresar el efectivo directamente.' }}</small>@endif
@@ -44,9 +54,9 @@
                     @if (!$this->preview['valid'])
                         <p role="alert">Revisa los importes: usa números no negativos con hasta dos decimales.</p>
                     @else
-                        <div class="pg-closing-balances-total"><span>Total contado</span><strong>Bs {{ \App\Support\Bolivianos::format($this->preview['total_cents']) }}</strong></div>
-                        <div class="pg-closing-balances-result"><div><span>Saldo esperado</span><strong>Bs {{ \App\Support\Bolivianos::format($this->preview['expected_cents']) }}</strong></div>
-                            <div class="is-{{ $this->preview['kind'] }}"><span>{{ match($this->preview['kind']) { 'shortage' => 'Faltante', 'surplus' => 'Sobrante', default => 'Sin diferencia' } }}</span><strong>Bs {{ \App\Support\Bolivianos::format($this->preview['difference_absolute_cents']) }}</strong></div>
+                        <div class="pg-closing-balances-total" x-show="Number.isFinite(total)"><span>Total contado</span><strong x-text="'Bs ' + format(total)">Bs {{ \App\Support\Bolivianos::format($this->preview['total_cents'] ?? 0) }}</strong></div>
+                        <div class="pg-closing-balances-result" x-show="Number.isFinite(total)"><div><span>Saldo esperado</span><strong>Bs {{ \App\Support\Bolivianos::format($this->preview['expected_cents']) }}</strong></div>
+                            <div :class="difference < 0 ? 'is-shortage' : difference > 0 ? 'is-surplus' : 'is-balanced'"><span x-text="difference < 0 ? 'Faltante' : difference > 0 ? 'Sobrante' : 'Sin diferencia'">{{ match($this->preview['kind']) { 'shortage' => 'Faltante', 'surplus' => 'Sobrante', default => 'Sin diferencia' } }}</span><strong x-text="'Bs ' + format(Math.abs(difference))">Bs {{ \App\Support\Bolivianos::format($this->preview['difference_absolute_cents'] ?? 0) }}</strong></div>
                         </div>
                         <p>Las comisiones y los movimientos registrados ya están incluidos en el saldo esperado.</p>
                     @endif

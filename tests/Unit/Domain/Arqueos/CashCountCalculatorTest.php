@@ -35,3 +35,10 @@ it('rejects invalid quantities and packed amounts without presenting a valid tot
     'unknown packed cut' => [[], ['otra' => '1']],
     'total overflow' => [[], ['b100' => '999999999.99', 'm5' => '0.01']],
 ]);
+
+it('accepts decimal commas in packed money and matching cash', function () {
+    $calculator = new CashCountCalculator;
+    $count = $calculator->calculate(['b200' => '4', 'b100' => '26', 'b50' => '2', 'b20' => '34', 'b10' => '62'], ['m010' => '0,20']);
+    expect($count['snapshot']['loose_total_cents'])->toBe(480000)
+        ->and($calculator->matchesCash($count['snapshot'], '4800,20'))->toBeTrue();
+});

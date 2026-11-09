@@ -7,7 +7,7 @@ use App\Support\Bolivianos;
 /** A read-only preview, never a recorded count or closing decision. */
 class CashBoxClosingBalancePreview
 {
-    public function calculate(array $balances, array $expected): array
+    public function calculate(array $balances, array $expected, bool $decimalComma = true): array
     {
         $expectedTotal = (int) array_sum($expected);
         $invalid = ['valid' => false, 'total_cents' => null, 'expected_cents' => $expectedTotal, 'difference_cents' => null, 'difference_absolute_cents' => null, 'kind' => 'invalid'];
@@ -19,6 +19,9 @@ class CashBoxClosingBalancePreview
         foreach ($expected as $code => $unused) {
             $raw = $balances[$code] ?? '';
             $raw = $raw === '' ? '0' : $raw;
+            if ($decimalComma && is_string($raw)) {
+                $raw = str_replace(',', '.', $raw);
+            }
             if ((! is_string($raw) && ! is_int($raw)) || ! preg_match('/\A[0-9]{1,9}(?:\.[0-9]{1,2})?\z/', (string) $raw)) {
                 return $invalid;
             }

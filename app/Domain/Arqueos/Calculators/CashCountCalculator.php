@@ -31,14 +31,14 @@ class CashCountCalculator
             if ((! is_string($pieces) && ! is_int($pieces)) || ! preg_match('/\A[0-9]{1,6}\z/', (string) $pieces)) {
                 $errors['quantities.'.$key] = 'Usa piezas enteras de cero a 999999.';
             }
-            if ((! is_string($amount) && ! is_int($amount)) || ! preg_match('/\A[0-9]{1,9}(?:\.[0-9]{1,2})?\z/', (string) $amount)) {
+            if ((! is_string($amount) && ! is_int($amount)) || ! preg_match('/\A[0-9]{1,9}(?:[.,][0-9]{1,2})?\z/', (string) $amount)) {
                 $errors['packed_amounts.'.$key] = 'Usa un importe no negativo con hasta dos decimales.';
             }
             if (isset($errors['quantities.'.$key]) || isset($errors['packed_amounts.'.$key])) {
                 continue;
             }
             $normalized[$key] = (int) $pieces;
-            $packed[$key] = Bolivianos::cents((string) $amount);
+            $packed[$key] = Bolivianos::cents(str_replace(',', '.', (string) $amount));
             $loose = $normalized[$key] * $denomination;
             $looseTotal += $loose;
             $packedTotal += $packed[$key];
@@ -78,10 +78,10 @@ class CashCountCalculator
     public function matchesCash(array $snapshot, mixed $amount): bool
     {
         $amount = $amount === '' || $amount === null ? '0' : $amount;
-        if ((! is_string($amount) && ! is_int($amount)) || ! preg_match('/\A[0-9]{1,9}(?:\.[0-9]{1,2})?\z/', (string) $amount)) {
+        if ((! is_string($amount) && ! is_int($amount)) || ! preg_match('/\A[0-9]{1,9}(?:[.,][0-9]{1,2})?\z/', (string) $amount)) {
             return false;
         }
 
-        return Bolivianos::cents((string) $amount) === $snapshot['total_cents'];
+        return Bolivianos::cents(str_replace(',', '.', (string) $amount)) === $snapshot['total_cents'];
     }
 }

@@ -62,7 +62,7 @@ trait InteractsWithCashBoxOpening
     #[Computed]
     public function openingPreview(): array
     {
-        return app(CashBoxClosingBalancePreview::class)->calculate($this->openingBalances, $this->workspace['expected']);
+        return app(CashBoxClosingBalancePreview::class)->calculate($this->openingBalances, $this->workspace['expected'], decimalComma: false);
     }
 
     #[Computed]

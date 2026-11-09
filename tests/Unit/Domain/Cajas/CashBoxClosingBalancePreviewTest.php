@@ -17,3 +17,11 @@ it('does not present invalid money as a valid total', function ($value) {
 it('rejects components outside the active session', function () {
     expect((new CashBoxClosingBalancePreview)->calculate(['otra' => '100'], ['efectivo' => 0])['valid'])->toBeFalse();
 });
+
+it('includes the mobile decimal comma in the closing total', function () {
+    $result = (new CashBoxClosingBalancePreview)->calculate(
+        ['efectivo' => '4859.90', 'bcp' => '11013.42', 'yape' => '227,38'],
+        ['efectivo' => 1600000, 'bcp' => 0, 'yape' => 0],
+    );
+    expect($result['total_cents'])->toBe(1610070)->and($result['difference_cents'])->toBe(10070);
+});
