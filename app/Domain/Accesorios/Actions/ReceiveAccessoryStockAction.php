@@ -20,7 +20,7 @@ class ReceiveAccessoryStockAction
     {
         app(AccessoryInventoryQuery::class)->authorize($actor, 'manage');
         $v = Validator::make($data, ['product_id' => ['required', 'integer', 'exists:accessory_products,id'], 'quantity' => ['required', 'integer', 'min:1', 'max:100000'], 'kind' => ['required', Rule::in(['INITIAL', 'PURCHASE'])], 'supplier' => ['nullable', 'string', 'max:160'], 'note' => ['nullable', 'string', 'max:500'], 'expected_revision' => ['required', 'integer', 'min:0'], 'request_key' => ['required', 'uuid']])->validate();
-        $values = ['product_id' => (int) $v['product_id'], 'quantity' => (int) $v['quantity'], 'kind' => $v['kind'], 'unit_cost_cents' => PricingInput::money($data['unit_cost'] ?? '', 'unit_cost'), 'supplier' => filled($v['supplier'] ?? null) ? trim($v['supplier']) : null, 'note' => filled($v['note'] ?? null) ? trim($v['note']) : null, 'previous_revision' => (int) $v['expected_revision']];
+        $values = ['product_id' => (int) $v['product_id'], 'quantity' => (int) $v['quantity'], 'kind' => $v['kind'], 'unit_cost_cents' => ($v['kind'] === 'INITIAL' && ! filled($data['unit_cost'] ?? null)) ? null : PricingInput::money($data['unit_cost'] ?? '', 'unit_cost'), 'supplier' => filled($v['supplier'] ?? null) ? trim($v['supplier']) : null, 'note' => filled($v['note'] ?? null) ? trim($v['note']) : null, 'previous_revision' => (int) $v['expected_revision']];
         $hash = hash('sha256', json_encode($values, JSON_THROW_ON_ERROR));
 
         return DB::transaction(function () use ($actor, $v, $values, $hash): AccessoryStockEntry {
@@ -43,7 +43,15 @@ class ReceiveAccessoryStockAction
             if ($values['kind'] === 'INITIAL' && $p->revision !== 0) {
                 throw ValidationException::withMessages(['kind' => 'El inventario inicial solo se registra antes de la primera compra.']);
             }
-            $next = app(AverageCostCalculator::class)->receive($p->quantity, $p->stock_value_cents, $values['quantity'], $values['unit_cost_cents']);
+            if ($p->cost_pending && ($values['kind'] !== 'INITIAL' || $values['unit_cost_cents'] !== null)) {
+                throw ValidationException::withMessages(['unit_cost' => 'Completa el costo inicial antes de registrar otra entrada.']);
+            }
+            if ($values['unit_cost_cents'] === null && ! $p->cost_pending) {
+                throw ValidationException::withMessages(['unit_cost' => 'Ingresa el costo por unidad.']);
+            }
+            $next = $p->cost_pending
+                ? ['quantity' => $values['quantity'], 'value_cents' => 0, 'entry_cents' => null]
+                : app(AverageCostCalculator::class)->receive($p->quantity, $p->stock_value_cents, $values['quantity'], $values['unit_cost_cents']);
             $event = AccessoryStockEntry::create($values + ['user_id' => $u->id, 'actor_name' => $u->name, 'total_cost_cents' => $next['entry_cents'], 'before_quantity' => $p->quantity, 'after_quantity' => $next['quantity'], 'before_value_cents' => $p->stock_value_cents, 'after_value_cents' => $next['value_cents'], 'request_key' => $v['request_key'], 'payload_hash' => $hash, 'created_at' => now()]);
             $p->update(['quantity' => $next['quantity'], 'stock_value_cents' => $next['value_cents'], 'revision' => $p->revision + 1]);
 

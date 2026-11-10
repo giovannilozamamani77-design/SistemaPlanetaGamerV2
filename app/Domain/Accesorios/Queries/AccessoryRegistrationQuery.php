@@ -27,7 +27,7 @@ class AccessoryRegistrationQuery
 
     public function defaults(User $u): array
     {
-        return ['code' => '', 'name' => '', 'category_id' => null, 'description' => '', 'unit_cost' => '', 'sale_price' => '', 'quantity' => 0, 'minimum_stock' => 0, 'image' => null, 'camera_image' => null, 'expected_pricing_revision' => $this->settings($u)['revision']];
+        return ['code' => '', 'name' => '', 'category_id' => null, 'description' => '', 'unit_cost' => '', 'cost_pending' => false, 'sale_price' => '', 'quantity' => 0, 'minimum_stock' => 0, 'image' => null, 'camera_image' => null, 'expected_pricing_revision' => $this->settings($u)['revision']];
     }
 
     public function categories(User $u, bool $onlyQuantity = true): Builder
@@ -57,14 +57,14 @@ class AccessoryRegistrationQuery
     {
         app(AccessoryInventoryQuery::class)->authorize($u, 'manage');
         $data['code'] = is_string($data['code'] ?? null) ? trim($data['code']) : ($data['code'] ?? null);
-        $v = Validator::make($data, ['code' => ['required', 'string', 'max:60', 'regex:/\A[A-Za-z0-9][A-Za-z0-9 ._\/-]*\z/'], 'name' => ['required', 'string', 'max:160', new AccessoryName], 'category_id' => ['required', 'integer', 'exists:accessory_categories,id'], 'description' => ['nullable', 'string', 'max:1000'], 'quantity' => ['required', 'integer', 'min:0', 'max:100000'], 'minimum_stock' => ['nullable', 'integer', 'min:0', 'max:100000'], 'expected_pricing_revision' => ['required', 'integer', 'min:0'], 'request_key' => ['required', 'uuid']])->validate();
+        $v = Validator::make($data, ['cost_pending' => ['sometimes', 'boolean'], 'code' => ['required', 'string', 'max:60', 'regex:/\A[A-Za-z0-9][A-Za-z0-9 ._\/-]*\z/'], 'name' => ['required', 'string', 'max:160', new AccessoryName], 'category_id' => ['required', 'integer', 'exists:accessory_categories,id'], 'description' => ['nullable', 'string', 'max:1000'], 'quantity' => ['required', 'integer', 'min:0', 'max:100000'], 'minimum_stock' => ['nullable', 'integer', 'min:0', 'max:100000'], 'expected_pricing_revision' => ['required', 'integer', 'min:0'], 'request_key' => ['required', 'uuid']])->validate();
         $name = trim($v['name']);
         if ($name === '') {
             throw ValidationException::withMessages(['name' => 'Ingresa el nombre del accesorio.']);
         }
         $meta = app(ProductImageStorage::class)->inspect($image);
 
-        return ['code' => strtoupper($v['code']), 'name' => $name, 'category_id' => (int) $v['category_id'], 'description' => filled($v['description'] ?? null) ? trim($v['description']) : null, 'quantity' => (int) $v['quantity'], 'minimum_stock' => (int) ($v['minimum_stock'] ?? 0), 'unit_cost_cents' => PricingInput::money($data['unit_cost'] ?? '', 'unit_cost'), 'sale_price_cents' => PricingInput::money($data['sale_price'] ?? '', 'sale_price'), 'expected_pricing_revision' => (int) $v['expected_pricing_revision'], 'request_key' => strtolower($v['request_key']), 'image_hash' => $meta['hash'] ?? null];
+        return ['code' => strtoupper($v['code']), 'name' => $name, 'category_id' => (int) $v['category_id'], 'description' => filled($v['description'] ?? null) ? trim($v['description']) : null, 'quantity' => (int) $v['quantity'], 'minimum_stock' => (int) ($v['minimum_stock'] ?? 0), 'unit_cost_cents' => ($v['cost_pending'] ?? false) ? null : PricingInput::money($data['unit_cost'] ?? '', 'unit_cost'), 'sale_price_cents' => PricingInput::money($data['sale_price'] ?? '', 'sale_price'), 'expected_pricing_revision' => (int) $v['expected_pricing_revision'], 'request_key' => strtolower($v['request_key']), 'image_hash' => $meta['hash'] ?? null];
     }
 
     public function prepare(User $u, array $input, bool $checkCode = true): array
@@ -79,6 +79,9 @@ class AccessoryRegistrationQuery
         }
         if ($checkCode && AccessoryProduct::where('code', $input['code'])->exists()) {
             throw ValidationException::withMessages(['code' => 'Este código ya existe. Usa Registrar entrada sobre el accesorio existente.']);
+        }
+        if ($input['unit_cost_cents'] === null) {
+            return ['values' => $input, 'category_name' => $category->name, 'total_cost_cents' => null, 'profit_cents' => null, 'markup_bps' => null, 'suggested_price_cents' => null, 'pricing_revision' => $s['revision'], 'price_source' => 'MANUAL'];
         }
         $quote = $this->quote($u, Bolivianos::format($input['unit_cost_cents']), Bolivianos::format($input['sale_price_cents']));
         $total = $input['quantity'] > 0 ? app(AverageCostCalculator::class)->receive(0, 0, $input['quantity'], $input['unit_cost_cents'])['entry_cents'] : 0;

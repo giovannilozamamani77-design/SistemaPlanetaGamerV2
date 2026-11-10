@@ -9,7 +9,7 @@ class CommissionCalculator
     public function calculate(array $line, ?array $rules = null): int
     {
         $rules ??= CommercialRules::current('COMMISSIONS')['rules'];
-        if (! $rules['enabled']) {
+        if (! $rules['enabled'] || $line['cost_cents'] === null) {
             return 0;
         }
         $cost = $line['cost_cents'];

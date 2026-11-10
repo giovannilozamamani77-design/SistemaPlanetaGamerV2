@@ -21,7 +21,7 @@
     <p><span>Subtotal</span><strong>Bs {{ \App\Support\Bolivianos::formatCompact($summary['subtotal_cents'] ?? $summary['total_cents']) }}</strong></p>
     <p><span>Descuento</span><strong>{{ ($summary['discount_cents'] ?? 0) > 0 ? 'Bs '.\App\Support\Bolivianos::formatCompact($summary['discount_cents']) : 'Sin descuento' }}</strong></p>
     <p class="pg-sale-review-total"><span>Total a cobrar</span><strong>Bs {{ \App\Support\Bolivianos::formatCompact($summary['total_cents']) }}</strong></p>
-    <p><span>Tu comisión por esta venta</span><strong style="color:var(--color-cyan-400,#22d3ee)">Bs {{ \App\Support\Bolivianos::formatCompact($summary['commission_cents'] ?? 0) }}</strong></p>
+    <p><span>{{ ($summary['commission_pending'] ?? false) ? 'Comisión conocida · hay costos pendientes' : 'Tu comisión por esta venta' }}</span><strong style="color:var(--color-cyan-400,#22d3ee)">Bs {{ \App\Support\Bolivianos::formatCompact($summary['commission_cents'] ?? 0) }}</strong></p>
     <small>Se acumula para {{ auth()->user()->name }}. Confirmar registra el cobro; no retira la comisión del efectivo.</small>
 @else
     <p>Revisa primero los productos.</p>

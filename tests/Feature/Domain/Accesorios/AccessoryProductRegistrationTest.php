@@ -4,6 +4,7 @@ use App\Domain\Accesorios\Actions\CreateAccessoryCategoryAction;
 use App\Domain\Accesorios\Actions\CreateAccessoryProductAction;
 use App\Domain\Accesorios\Actions\RegisterAccessoryProductAction;
 use App\Domain\Accesorios\Actions\RegisterAccessorySaleAction;
+use App\Domain\Accesorios\Actions\ResolveAccessoryCostAction;
 use App\Domain\Accesorios\Data\PricingInput;
 use App\Domain\Accesorios\Models\AccessoryCategory;
 use App\Domain\Accesorios\Models\AccessoryProduct;
@@ -11,6 +12,9 @@ use App\Domain\Accesorios\Models\AccessoryProductRegistration;
 use App\Domain\Accesorios\Models\AccessoryStockEntry;
 use App\Domain\Accesorios\Models\PricingSettings;
 use App\Domain\Accesorios\Queries\AccessoryRegistrationQuery;
+use App\Domain\Accesorios\Queries\AccessorySaleQuery;
+use App\Domain\Comisiones\Models\CommissionEntry;
+use App\Domain\Reportes\Queries\ModuleReportQuery;
 use App\Models\User;
 use Database\Seeders\Accesorios\AccessoryInventoryPermissionsSeeder;
 use Database\Seeders\Accesorios\AccessorySalesPermissionsSeeder;
@@ -222,3 +226,33 @@ it('C388 stores alphanumeric names in both accessory registration paths', functi
     expect($registered->fresh()->name)->toBe($name)->and($created->fresh()->name)->toBe($name);
     expect($created->code)->toBe('000123');
 })->with(['Air 2', 'Cargador 20W', 'Audífono ２０']);
+
+it('sells opening stock with unknown cost and resolves past margin once the actual cost is recorded', function () {
+    $admin = registrationAdmin();
+    test()->seed(AccessorySalesPermissionsSeeder::class);
+    $product = app(RegisterAccessoryProductAction::class)->execute($admin, registrationData(registrationCategory($admin), ['cost_pending' => true, 'unit_cost' => null]));
+    expect($product->cost_pending)->toBeTrue()->and($product->quantity)->toBe(5)
+        ->and(AccessoryStockEntry::sole()->unit_cost_cents)->toBeNull();
+    $sale = app(RegisterAccessorySaleAction::class)->execute($admin, [
+        'lines' => [['product_id' => $product->id, 'quantity' => 2, 'expected_revision' => $product->revision, 'expected_price_cents' => 1500]],
+        'payment_method' => 'CASH', 'cash_received' => true, 'request_key' => (string) Str::uuid(),
+    ]);
+    $query = app(AccessorySaleQuery::class);
+    expect($sale->total_cents)->toBe(3000)->and($sale->cost_cents)->toBeNull()
+        ->and($query->detail($admin, $sale)['profit_cents'])->toBeNull()
+        ->and(CommissionEntry::count())->toBe(0);
+    $report = app(ModuleReportQuery::class);
+    $month = $sale->created_at->timezone('America/La_Paz')->format('Y-m');
+    expect($report->execute($admin, 'ACCESSORIES', $month)['margin']['pending'])->toBe(1);
+    $resolve = app(ResolveAccessoryCostAction::class);
+    $resolve->execute($admin, $product->id, '10', $product->fresh()->revision);
+    expect($product->fresh()->stock_value_cents)->toBe(3000)
+        ->and($product->fresh()->quantity)->toBe(3)
+        ->and($product->fresh()->cost_pending)->toBeFalse()
+        ->and($sale->lines()->sole()->cost_cents)->toBeNull()
+        ->and($query->detail($admin, $sale)['profit_cents'])->toBe(1000)
+        ->and(CommissionEntry::count())->toBe(1);
+    $margin = $report->execute($admin, 'ACCESSORIES', $month)['margin'];
+    expect($margin['pending'])->toBe(0)->and($margin['known_cents'])->toBe(1000);
+    expect(fn () => $resolve->execute($admin, $product->id, '10', $product->fresh()->revision))->toThrow(ValidationException::class);
+});

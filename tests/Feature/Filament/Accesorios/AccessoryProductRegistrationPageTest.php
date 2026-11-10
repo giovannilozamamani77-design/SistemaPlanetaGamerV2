@@ -45,6 +45,10 @@ it('C254 opens a full registration page and confirms a complete initial inventor
     expect(AccessoryProduct::count())->toBe(0);
     $page->callMountedAction()->assertHasNoActionErrors()->assertSet('data.code', '')->assertSet('data.name', '')->assertDispatched('accessory-product-ready');
     expect(AccessoryProduct::first()->quantity)->toBe(3)->and(AccessoryStockEntry::count())->toBe(1);
+    $page->fillForm(productPageData($u, ['code' => '0000123456790', 'name' => 'Cable USB C']))
+        ->call('reviewProduct')->callMountedAction()->assertHasNoActionErrors()
+        ->assertSet('data.code', '')->assertDispatched('accessory-product-ready');
+    expect(AccessoryProduct::count())->toBe(2)->and(AccessoryStockEntry::count())->toBe(2);
 });
 it('C254 cancelling the review keeps entered fields and never writes stock or image', function () {
     $u = productPageAdmin();
@@ -87,7 +91,8 @@ it('C254 categories can be created without duplicate spelling variants and cashi
 });
 it('C254 rejects changed form data or revoked permissions after review without persisting a partial product', function () {
     $u = productPageAdmin();
-    $page = Livewire::test(RegisterAccessoryProduct::class)->fillForm(productPageData($u))->call('reviewProduct')->set('data.quantity', 4)->callMountedAction()->assertHasErrors(['data.code']);
+    $page = Livewire::test(RegisterAccessoryProduct::class)->fillForm(productPageData($u))->call('reviewProduct')->set('data.quantity', 4)->callMountedAction()->assertHasErrors(['data.code'])
+        ->assertMountedActionModalSee('Los datos cambiaron. Vuelve a revisar antes de registrar.');
     expect(AccessoryProduct::count())->toBe(0);
     $page = Livewire::test(RegisterAccessoryProduct::class)->fillForm(productPageData($u))->call('reviewProduct');
     $u->removeRole('administrador');
@@ -117,7 +122,7 @@ it('C254 preserves form and temporary image when the database rejects the final 
     $data = productPageData($u, ['image' => UploadedFile::fake()->image('foto.jpg')]);
     $page = Livewire::test(RegisterAccessoryProduct::class)->fillForm($data)->call('reviewProduct');
     DB::statement("CREATE TRIGGER page_registration_failure BEFORE INSERT ON accessory_product_registrations BEGIN SELECT RAISE(ABORT, 'database interrupted'); END");
-    $page->callMountedAction()->assertSet('data.code', '0000123456789')->assertSet('data.name', 'Cargador USB C');
+    $page->callMountedAction()->assertSet('data.code', '0000123456789')->assertSet('data.name', 'Cargador USB C')->assertSee('No se pudo guardar el accesorio. Tus datos se conservaron.');
     expect(AccessoryProduct::count())->toBe(0)->and(AccessoryStockEntry::count())->toBe(0)->and(Storage::disk('local')->allFiles('accessories/products'))->toBe([]);
     DB::statement('DROP TRIGGER page_registration_failure');
     $page->call('reviewProduct')->callMountedAction()->assertHasNoActionErrors()->assertSet('data.code', '');
@@ -152,4 +157,14 @@ it('C388 confirms an accessory name containing letters and numbers', function ()
     Livewire::test(RegisterAccessoryProduct::class)->fillForm(productPageData($u, ['name' => 'Air 2']))
         ->call('reviewProduct')->assertHasNoErrors()->callMountedAction()->assertHasNoActionErrors();
     expect(AccessoryProduct::sole()->name)->toBe('Air 2');
+});
+
+it('registers existing stock at its set price without asking for a purchase cost', function () {
+    $admin = productPageAdmin();
+    Livewire::test(RegisterAccessoryProduct::class)
+        ->fillForm(productPageData($admin, ['cost_pending' => true, 'unit_cost' => '']))
+        ->call('reviewProduct')->assertHasNoErrors()->assertMountedActionModalSee('Pendiente')
+        ->callMountedAction()->assertHasNoActionErrors();
+    expect(AccessoryProduct::sole()->cost_pending)->toBeTrue()
+        ->and(AccessoryProduct::sole()->sale_price_cents)->toBe(1500);
 });

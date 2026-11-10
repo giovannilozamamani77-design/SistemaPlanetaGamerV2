@@ -13,7 +13,7 @@ class AccessoryProduct extends Model
 
     protected function casts(): array
     {
-        return ['category_id' => 'integer', 'reference_cost_cents' => 'integer', 'minimum_stock' => 'integer', 'quantity' => 'integer', 'stock_value_cents' => 'integer', 'sale_price_cents' => 'integer', 'revision' => 'integer', 'created_by' => 'integer'];
+        return ['cost_pending' => 'boolean', 'category_id' => 'integer', 'reference_cost_cents' => 'integer', 'minimum_stock' => 'integer', 'quantity' => 'integer', 'stock_value_cents' => 'integer', 'sale_price_cents' => 'integer', 'revision' => 'integer', 'created_by' => 'integer'];
     }
 
     public function entries(): HasMany

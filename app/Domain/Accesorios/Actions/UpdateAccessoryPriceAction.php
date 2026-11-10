@@ -43,6 +43,9 @@ class UpdateAccessoryPriceAction
             if ($p->revision !== $input['expected_revision']) {
                 throw ValidationException::withMessages(['manual_price' => 'El inventario cambió. Abre nuevamente el ajuste.']);
             }
+            if ($p->cost_pending) {
+                throw ValidationException::withMessages(['manual_price' => 'Completa el costo de compra antes de ajustar el precio.']);
+            }
             if ($p->quantity < 1) {
                 throw ValidationException::withMessages(['manual_price' => 'Registra primero existencias con su costo.']);
             }

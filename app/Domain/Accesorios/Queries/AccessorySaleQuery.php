@@ -14,6 +14,7 @@ use App\Domain\Comisiones\Calculators\CommissionCalculator;
 use App\Models\User;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Str;
@@ -129,7 +130,7 @@ class AccessorySaleQuery
         }
         unset($line);
 
-        return ['rules_revisions' => ['DISCOUNTS' => $discounts['revision'], 'COMMISSIONS' => $commissions['revision']], 'commission_cents' => array_sum(array_column($lines, 'commission_cents'))] + app(SaleDiscountCalculator::class)->summary($lines) + ['quantity' => $totals['quantity'], 'total_cents' => $totals['total_cents'], 'lines' => array_map(fn ($line) => app(SaleDiscountCalculator::class)->amounts($line) + array_intersect_key($line, array_flip(['commission_cents', 'product_id', 'product_code', 'product_name', 'product_description', 'quantity', 'unit_price_cents', 'total_cents', 'kind', 'phone_unit_id', 'phone_snapshot', 'warranty'])), $lines)];
+        return ['rules_revisions' => ['DISCOUNTS' => $discounts['revision'], 'COMMISSIONS' => $commissions['revision']], 'commission_cents' => array_sum(array_column($lines, 'commission_cents')), 'commission_pending' => in_array(null, array_column($lines, 'cost_cents'), true)] + app(SaleDiscountCalculator::class)->summary($lines) + ['quantity' => $totals['quantity'], 'total_cents' => $totals['total_cents'], 'lines' => array_map(fn ($line) => app(SaleDiscountCalculator::class)->amounts($line) + array_intersect_key($line, array_flip(['commission_cents', 'product_id', 'product_code', 'product_name', 'product_description', 'quantity', 'unit_price_cents', 'total_cents', 'kind', 'phone_unit_id', 'phone_snapshot', 'warranty'])), $lines)];
     }
 
     public function cash(User $u): int
@@ -156,6 +157,9 @@ class AccessorySaleQuery
         $out['customer'] = $sale->customer_snapshot;
         $out['receipt_required'] = $sale->receipt_required;
         $out['lines'] = [];
+        $resolved = $costs ? DB::table('accessory_cost_resolutions')
+            ->whereIn('product_id', $sale->lines->whereNull('cost_cents')->pluck('product_id'))
+            ->pluck('unit_cost_cents', 'product_id') : collect();
         foreach ($sale->lines as $line) {
             $row = $line->only(['product_code', 'product_name', 'product_description', 'quantity', 'unit_price_cents', 'total_cents']);
             $row += app(SaleDiscountCalculator::class)->amounts($line->toArray());
@@ -164,12 +168,13 @@ class AccessorySaleQuery
             $row['warranty'] = $this->warranty($line);
             $row['image_url'] = $line->product_image_path ? route('accesorios.venta-imagen', ['line' => $line->id]) : null;
             if ($costs) {
-                $row['cost_cents'] = $line->cost_cents;
+                $row['cost_cents'] = $line->cost_cents ?? (isset($resolved[$line->product_id]) ? (int) $resolved[$line->product_id] * $line->quantity : null);
             }$out['lines'][] = $row;
         }
         if ($costs) {
-            $out['cost_cents'] = $sale->cost_cents;
-            $out['profit_cents'] = $sale->total_cents - $sale->cost_cents;
+            $lineCosts = array_column($out['lines'], 'cost_cents');
+            $out['cost_cents'] = in_array(null, $lineCosts, true) ? null : array_sum($lineCosts);
+            $out['profit_cents'] = $out['cost_cents'] === null ? null : $sale->total_cents - $out['cost_cents'];
         }
 
         return $out + app(SaleDiscountCalculator::class)->summary($out['lines']);

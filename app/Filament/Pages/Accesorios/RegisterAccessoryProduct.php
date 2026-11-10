@@ -13,6 +13,7 @@ use Filament\Forms\Components\Hidden;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\Textarea;
 use Filament\Forms\Components\TextInput;
+use Filament\Forms\Components\Toggle;
 use Filament\Notifications\Notification;
 use Filament\Pages\Page;
 use Filament\Schemas\Components\Group;
@@ -56,6 +57,9 @@ class RegisterAccessoryProduct extends Page
 
     public ?string $quoteError = null;
 
+    #[Locked]
+    public ?string $confirmationError = null;
+
     public static function canAccess(): bool
     {
         return AccessoryCategories::canAccess();
@@ -94,7 +98,7 @@ class RegisterAccessoryProduct extends Page
         return $schema->statePath('data')->schema([
             Group::make([
                 Section::make('Identificación del accesorio')->icon('heroicon-o-cube')->iconColor('info')->extraAttributes(['class' => 'pg-registration-section pg-registration-section-identity'])->schema([
-                    TextInput::make('code')->label('Código de barras o código interno')->beforeLabel(fn () => view('accesorios.icons.field-image', ['name' => 'code']))->inputMode('text')->required()->maxLength(60)->autofocus()->extraInputAttributes(['autocomplete' => 'off', 'autocapitalize' => 'off', 'x-on:keydown.enter.prevent' => "document.getElementById('registration-name')?.focus()"]),
+                    TextInput::make('code')->label('Código de barras o código interno')->beforeLabel(fn () => view('accesorios.icons.field-image', ['name' => 'code']))->inputMode('text')->required()->maxLength(60)->id('registration-code')->autofocus()->extraInputAttributes(['autocomplete' => 'off', 'autocapitalize' => 'off', 'x-on:keydown.enter.prevent' => "if (\$event.target.value.trim()) document.getElementById('registration-name')?.focus()"]),
                     TextInput::make('name')->label('Nombre del accesorio')->beforeLabel(fn () => view('accesorios.icons.field-image', ['name' => 'name']))->required()->maxLength(160)->rules([new AccessoryName])->inputMode('text')->extraInputAttributes(['autocomplete' => 'off'])->id('registration-name'),
                     Select::make('category_id')->label('Categoría')->beforeLabel(fn () => view('accesorios.icons.field-image', ['name' => 'category']))->required()->searchable()->position('bottom')->options(fn () => app(AccessoryRegistrationQuery::class)->categories(auth()->user())->limit(50)->pluck('name', 'id')->all())->getSearchResultsUsing(fn (string $search) => app(AccessoryRegistrationQuery::class)->categories(auth()->user())->where('name', 'like', '%'.mb_substr($search, 0, 80).'%')->limit(50)->pluck('name', 'id')->all())->getOptionLabelUsing(fn ($value) => app(AccessoryRegistrationQuery::class)->categories(auth()->user())->whereKey($value)->value('name'))->createOptionForm(AccessoryCategories::fields(false))->createOptionUsing(fn (array $data) => $this->createCategory($data)),
                     Textarea::make('description')->label('Detalle (opcional)')->beforeLabel(fn () => view('accesorios.icons.field-image', ['name' => 'description']))->rows(2)->maxLength(1000),
@@ -102,7 +106,7 @@ class RegisterAccessoryProduct extends Page
             ])->columnSpan(1)->extraAttributes(['class' => 'pg-product-column pg-product-column-left']),
             Group::make([
                 Section::make('Costo, precio y existencias')->icon('heroicon-o-banknotes')->iconColor('success')->extraAttributes(['class' => 'pg-registration-section pg-registration-section-pricing'])->schema([
-                    Hidden::make('expected_pricing_revision'), TextInput::make('unit_cost')->label('Compra por unidad · Bs')->beforeLabel(fn () => view('accesorios.icons.field-image', ['name' => 'unit_cost']))->required()->inputMode('decimal')->live(debounce: 500)->afterStateUpdated(fn () => $this->refreshQuote()),
+                    Hidden::make('expected_pricing_revision'), Toggle::make('cost_pending')->label('Costo de compra pendiente')->live()->afterStateUpdated(fn () => $this->refreshQuote()), TextInput::make('unit_cost')->label('Compra por unidad · Bs')->beforeLabel(fn () => view('accesorios.icons.field-image', ['name' => 'unit_cost']))->hidden(fn ($get) => $get('cost_pending'))->required(fn ($get) => ! $get('cost_pending'))->inputMode('decimal')->live(debounce: 500)->afterStateUpdated(fn () => $this->refreshQuote()),
                     TextInput::make('sale_price')->label('Venta por unidad · Bs')->beforeLabel(fn () => view('accesorios.icons.field-image', ['name' => 'sale_price']))->required()->inputMode('decimal')->live(debounce: 500)->afterStateUpdated(function (): void {
                         $this->priceEdited = true;
                         $this->refreshQuote();
@@ -118,7 +122,7 @@ class RegisterAccessoryProduct extends Page
     {
         $this->quote = null;
         $this->quoteError = null;
-        if (blank($this->data['unit_cost'] ?? null)) {
+        if (($this->data['cost_pending'] ?? false) || blank($this->data['unit_cost'] ?? null)) {
             return;
         }
         try {
@@ -189,6 +193,7 @@ class RegisterAccessoryProduct extends Page
     public function reviewProduct(): void
     {
         $this->registeredProductId = null;
+        $this->confirmationError = null;
         try {
             $state = $this->validatedState();
             $image = $this->selectedImage($state);
@@ -201,7 +206,8 @@ class RegisterAccessoryProduct extends Page
 
     public function confirmProductAction(): Action
     {
-        return Action::make('confirmProduct')->label('Confirmar registro')->modalHeading('¿Los datos del accesorio son correctos?')->modalWidth(Width::TwoExtraLarge)->modalSubmitActionLabel('Confirmar y registrar')->modalCancelActionLabel('Volver y corregir')->closeModalByClickingAway(false)->modalContent(fn () => view('accesorios.product-registration-review', ['review' => $this->reviewed, 'imageUrl' => $this->reviewImageUrl]))->action(function (): void {
+        return Action::make('confirmProduct')->label('Confirmar registro')->modalHeading('¿Los datos del accesorio son correctos?')->modalWidth(Width::TwoExtraLarge)->modalSubmitActionLabel('Confirmar y registrar')->modalCancelActionLabel('Volver y corregir')->closeModalByClickingAway(false)->modalContent(fn () => view('accesorios.product-registration-review', ['review' => $this->reviewed, 'imageUrl' => $this->reviewImageUrl, 'confirmationError' => $this->confirmationError]))->action(function (): void {
+            $this->confirmationError = null;
             try {
                 $state = $this->validatedState();
                 $image = $this->selectedImage($state);
@@ -211,9 +217,12 @@ class RegisterAccessoryProduct extends Page
                 }
                 $p = app(RegisterAccessoryProductAction::class)->execute(auth()->user(), $state + ['request_key' => $this->requestKey], $image);
             } catch (ValidationException $e) {
+                $this->confirmationError = collect($e->errors())->flatten()->first();
+
                 throw $this->formErrors($e);
             } catch (QueryException $e) {
                 report($e);
+                $this->confirmationError = 'No se pudo guardar el accesorio. Tus datos se conservaron. Revisa el inventario y vuelve a intentar.';
                 Notification::make()->title('No se pudo guardar el accesorio')->body('Tus datos se conservaron. Revisa el inventario y vuelve a intentar.')->danger()->send();
 
                 return;

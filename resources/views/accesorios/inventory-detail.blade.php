@@ -1,6 +1,6 @@
 <div class="pg-pricing-card">
     <h3>{{ $product->name }} · {{ $product->code }}</h3>
-    <p>Stock: <strong>{{ $product->quantity }}</strong> · Costo promedio: <strong>Bs {{ $average }}</strong> · Inversión: <strong>Bs {{ \App\Support\Bolivianos::formatCompact($product->stock_value_cents) }}</strong></p>
+    <p>Stock: <strong>{{ $product->quantity }}</strong> @if ($product->cost_pending) · <strong>Costo de compra pendiente</strong> @else · Costo promedio: <strong>Bs {{ $average }}</strong> · Inversión: <strong>Bs {{ \App\Support\Bolivianos::formatCompact($product->stock_value_cents) }}</strong>@endif</p>
     <p>Precio confirmado: <strong>Bs {{ \App\Support\Bolivianos::formatCompact($product->sale_price_cents) }}</strong></p>
     @if ($suggestion)
         <p>Sugerencia según configuración: <strong>Bs {{ \App\Support\Bolivianos::formatCompact($suggestion['price_cents']) }}</strong> · Revisión {{ $suggestion['settings_revision'] }}</p>

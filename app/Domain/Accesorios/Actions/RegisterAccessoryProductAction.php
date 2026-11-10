@@ -42,8 +42,11 @@ class RegisterAccessoryProductAction
                     throw ValidationException::withMessages(['code' => 'Ese identificador pertenece a un alta anterior. Abre un formulario nuevo.']);
                 }
                 $product = app(CreateAccessoryProductAction::class)->execute($u, ['code' => $input['code'], 'name' => $input['name'], 'category' => $review['category_name'], 'description' => $input['description'], 'minimum_stock' => $input['minimum_stock'], 'sale_price' => Bolivianos::format($input['sale_price_cents']), 'request_key' => $input['request_key']]);
+                if ($input['unit_cost_cents'] === null) {
+                    $product->update(['cost_pending' => true]);
+                }
                 if ($input['quantity'] > 0) {
-                    app(ReceiveAccessoryStockAction::class)->execute($u, ['product_id' => $product->id, 'quantity' => $input['quantity'], 'unit_cost' => Bolivianos::format($input['unit_cost_cents']), 'kind' => 'INITIAL', 'expected_revision' => 0, 'request_key' => $input['request_key']]);
+                    app(ReceiveAccessoryStockAction::class)->execute($u, ['product_id' => $product->id, 'quantity' => $input['quantity'], 'unit_cost' => $input['unit_cost_cents'] === null ? null : Bolivianos::format($input['unit_cost_cents']), 'kind' => 'INITIAL', 'expected_revision' => 0, 'request_key' => $input['request_key']]);
                 }
                 if ($image !== null) {
                     $imagePath = app(ProductImageStorage::class)->store($image, $input['request_key']);

@@ -65,17 +65,22 @@ class ModuleMarginQuery
         $until = $context['until'];
         $zoneDay = DB::connection()->getDriverName() === 'sqlite' ? "date(sale.created_at, '-4 hours')" : 'DATE(DATE_SUB(sale.created_at, INTERVAL 4 HOUR))';
         foreach (($module === 'CARDS' ? ['CARDS', 'CREDIT', 'PACKAGES'] : ['ACCESSORY', 'PHONE']) as $source) {
+            $cost = 'line.cost_cents';
             if ($source === 'CARDS') {
                 $query = DB::table('card_sale_lines as line')->join('card_sales as sale', 'sale.id', '=', 'line.card_sale_id')->whereNotIn('sale.id', DB::table('card_sale_cancellations')->select('card_sale_id'));
                 $gross = 'line.gross_margin_cents';
             } elseif (in_array($source, ['CREDIT', 'PACKAGES'], true)) {
                 $query = DB::table('entel_recharges as sale')->where('sale.kind', $source);
                 $gross = 'sale.gross_margin_cents';
+                $cost = 'sale.cost_cents';
             } else {
                 $query = DB::table('accessory_sale_lines as line')->join('accessory_sales as sale', 'sale.id', '=', 'line.sale_id')->where('line.kind', $source);
-                $gross = 'line.total_cents - line.cost_cents';
+                if ($source === 'ACCESSORY') {
+                    $query->leftJoin('accessory_cost_resolutions as resolution', 'resolution.product_id', '=', 'line.product_id');
+                    $cost = 'COALESCE(line.cost_cents, resolution.unit_cost_cents * line.quantity)';
+                }
+                $gross = 'line.total_cents - '.$cost;
             }
-            $cost = in_array($source, ['CREDIT', 'PACKAGES'], true) ? 'sale.cost_cents' : 'line.cost_cents';
             $query->where('sale.created_at', '>=', $from)->where('sale.created_at', '<', $until);
             $days = (clone $query)->selectRaw($zoneDay.' as day, COALESCE(SUM('.$gross.'),0) as known, SUM(CASE WHEN '.$cost.' IS NULL THEN 1 ELSE 0 END) as pending')->groupByRaw($zoneDay)->get();
             $part = ['source' => $source, 'known_cents' => 0, 'pending' => 0];

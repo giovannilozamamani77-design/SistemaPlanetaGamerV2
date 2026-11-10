@@ -3,6 +3,7 @@
 namespace App\Filament\Pages\Accesorios;
 
 use App\Domain\Accesorios\Actions\ReceiveAccessoryStockAction;
+use App\Domain\Accesorios\Actions\ResolveAccessoryCostAction;
 use App\Domain\Accesorios\Actions\UpdateAccessoryPriceAction;
 use App\Domain\Accesorios\Models\AccessoryProduct;
 use App\Domain\Accesorios\Models\AccessorySale;
@@ -99,18 +100,28 @@ class AccessoryInventory extends Page implements HasTable
                 ImageColumn::make('image')->label('Imagen')->state(fn (AccessoryProduct $record) => $record->image_path ? route('accesorios.producto-imagen', ['product' => $record->id]) : null)->imageSize(36)->grow(false)->extraAttributes(['class' => 'pg-inventory-thumbnail']),
                 TextColumn::make('name')->icon('heroicon-o-cube')->extraAttributes(['class' => 'pg-inventory-value pg-tone-cyan'])->label('Accesorio')->searchable(['name', 'description', 'code', 'category'])->wrap()->weight('bold'),
             ]),
+            TextColumn::make('cost_status')->state(fn (AccessoryProduct $record) => $this->canManage() && $record->cost_pending ? 'Costo de compra pendiente' : null)->badge()->color('warning'),
             Grid::make(2)->schema([
                 TextColumn::make('sale_price_cents')->icon('heroicon-o-banknotes')->extraAttributes(['class' => 'pg-inventory-value pg-tone-green'])->label('Precio de venta · Bs')->prefix('Bs ')->weight('bold')->searchable(query: fn (Builder $query, string $search) => app(AccessoryInventoryQuery::class)->searchSalePrice($query, $search))->formatStateUsing(fn ($state) => Bolivianos::formatCompact((int) $state))->color(fn (AccessoryProduct $record) => app(AccessoryInventoryQuery::class)->belowCost($record) ? 'danger' : 'primary'),
                 TextColumn::make('quantity')->icon('heroicon-o-archive-box')->extraAttributes(['class' => 'pg-inventory-value pg-tone-gold'])->label('Stock')->prefix('Stock: ')->badge()->color(fn (AccessoryProduct $record) => $record->quantity <= $record->minimum_stock ? 'warning' : 'success')->sortable(),
             ]),
         ])->space(1)])->contentGrid(['default' => 1, 'sm' => 2, 'md' => 3, 'lg' => 5, 'xl' => 5])->searchPlaceholder('Código, nombre, categoría o precio')->recordActions([
-            Action::make('updatePrice')->color('warning')->label('Ajustar precio')->icon('heroicon-o-tag')->iconButton()->tooltip('Confirmar precio manual o sugerencia configurada')->visible(fn () => $this->canManage())->modalHeading('Actualizar precio de venta')->modalDescription('No cambia el costo de las compras ni la configuración general. El cambio queda registrado.')->schema([
+            Action::make('resolveCost')->label('Registrar costo real')->icon('heroicon-o-banknotes')
+                ->visible(fn (AccessoryProduct $record) => $this->canManage() && $record->cost_pending)
+                ->modalDescription('Indica el costo por unidad del inventario inicial. Se calculará el costo de las unidades vendidas y de las que siguen en stock.')
+                ->schema([Hidden::make('expected_revision'), TextInput::make('unit_cost')->label('Costo real por unidad · Bs')->required()->inputMode('decimal')])
+                ->fillForm(fn (AccessoryProduct $record) => ['expected_revision' => $record->revision])
+                ->action(function (AccessoryProduct $record, array $data): void {
+                    $this->validateAction(fn () => app(ResolveAccessoryCostAction::class)->execute(auth()->user(), $record->id, $data['unit_cost'], (int) $data['expected_revision']));
+                    Notification::make()->title('Costo real registrado')->success()->send();
+                }),
+            Action::make('updatePrice')->color('warning')->label('Ajustar precio')->icon('heroicon-o-tag')->iconButton()->tooltip('Confirmar precio manual o sugerencia configurada')->visible(fn (AccessoryProduct $record) => $this->canManage() && ! $record->cost_pending)->modalHeading('Actualizar precio de venta')->modalDescription('No cambia el costo de las compras ni la configuración general. El cambio queda registrado.')->schema([
                 Hidden::make('request_key')->default(fn () => (string) Str::uuid()), Hidden::make('expected_revision'), Hidden::make('expected_pricing_revision'), Select::make('price_mode')->label('Precio')->options(['MANUAL' => 'Manual', 'PERCENT' => 'Porcentaje configurado'])->required()->native(), TextInput::make('manual_price')->label('Precio manual · Bs')->inputMode('decimal')->helperText('Solo se utiliza en modo manual; debe cubrir el costo promedio.'),
             ])->fillForm(fn (AccessoryProduct $record) => app(AccessoryInventoryQuery::class)->priceForm(auth()->user(), $record) + ['request_key' => (string) Str::uuid()])->action(function (AccessoryProduct $record, array $data): void {
                 $event = $this->validateAction(fn () => app(UpdateAccessoryPriceAction::class)->execute(auth()->user(), array_replace($data, ['product_id' => $record->id])));
                 Notification::make()->title('Precio actualizado · Bs '.Bolivianos::formatCompact($event->new_price_cents))->success()->send();
             }),
-            Action::make('receive')->color('success')->label('Registrar entrada')->icon('heroicon-o-arrow-down-tray')->iconButton()->tooltip('Registrar entrada')->visible(fn () => $this->canManage())->modalHeading(fn (AccessoryProduct $record) => 'Recibir · '.$record->name)->modalDescription('Conserva el costo de esta entrada y recalcula el promedio. No registra el pago ni descuenta de otras cajas.')->schema([
+            Action::make('receive')->color('success')->label('Registrar entrada')->icon('heroicon-o-arrow-down-tray')->iconButton()->tooltip('Registrar entrada')->visible(fn (AccessoryProduct $record) => $this->canManage() && ! $record->cost_pending)->modalHeading(fn (AccessoryProduct $record) => 'Recibir · '.$record->name)->modalDescription('Conserva el costo de esta entrada y recalcula el promedio. No registra el pago ni descuenta de otras cajas.')->schema([
                 Hidden::make('request_key')->default(fn () => (string) Str::uuid()), Hidden::make('expected_revision'), Select::make('kind')->label('Tipo de entrada')->options(['INITIAL' => 'Inventario inicial', 'PURCHASE' => 'Compra'])->required()->native(), TextInput::make('quantity')->label('Cantidad recibida')->required()->integer()->minValue(1)->maxValue(100000), TextInput::make('unit_cost')->label('Costo real por unidad · Bs')->required()->inputMode('decimal'), TextInput::make('supplier')->label('Proveedor (opcional)')->maxLength(160), Textarea::make('note')->label('Observación (opcional)')->maxLength(500),
             ])->fillForm(fn (AccessoryProduct $record) => ['kind' => $record->revision === 0 ? 'INITIAL' : 'PURCHASE', 'expected_revision' => $record->revision, 'request_key' => (string) Str::uuid()])->action(function (AccessoryProduct $record, array $data): void {
                 $event = $this->validateAction(fn () => app(ReceiveAccessoryStockAction::class)->execute(auth()->user(), array_replace($data, ['product_id' => $record->id])));
@@ -126,7 +137,7 @@ class AccessoryInventory extends Page implements HasTable
                 $suggestion = null;
                 $warning = null;
                 try {
-                    $suggestion = $q->suggestion(auth()->user(), $record);
+                    $suggestion = $record->cost_pending ? null : $q->suggestion(auth()->user(), $record);
                 } catch (ValidationException $e) {
                     $warning = collect($e->errors())->flatten()->first();
                 }

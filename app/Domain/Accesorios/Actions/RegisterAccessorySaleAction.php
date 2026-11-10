@@ -101,13 +101,15 @@ class RegisterAccessorySaleAction
             $client = $customer ? Borrower::firstOrCreate(['ci' => $customer['ci']], ['name' => $customer['name'], 'phone' => $customer['phone']]) : null;
             $sale = AccessorySale::create($totals + ['customer_id' => $client?->id, 'customer_snapshot' => $customer, 'receipt_required' => (bool) $phones] + ['user_id' => $u->id, 'actor_name' => $u->name, 'payment_method' => 'CASH', 'pricing_revision' => PricingSettings::where('code', 'GENERAL')->value('revision') ?? 0, 'request_key' => $payment['request_key'], 'payload_hash' => $hash, 'created_at' => $at]);
             foreach ($lines as $line) {
-                $savedLine = AccessorySaleLine::create($line + ['sale_id' => $sale->id]);
-                CommissionEntry::create([
-                    'sale_line_id' => $savedLine->id, 'user_id' => $u->id, 'actor_name' => $u->name,
-                    'amount_cents' => app(CommissionCalculator::class)->calculate($line, $settings['COMMISSIONS']->rules),
-                    'snapshot' => ['discount_rules' => $settings['DISCOUNTS']->rules, 'discount_revision' => $settings['DISCOUNTS']->revision, 'commission_rules' => $settings['COMMISSIONS']->rules, 'commission_revision' => $settings['COMMISSIONS']->revision, 'enabled' => $settings['COMMISSIONS']->rules['enabled']],
-                    'created_at' => $at,
-                ]);
+                $commissionSnapshot = ['discount_rules' => $settings['DISCOUNTS']->rules, 'discount_revision' => $settings['DISCOUNTS']->revision, 'commission_rules' => $settings['COMMISSIONS']->rules, 'commission_revision' => $settings['COMMISSIONS']->revision, 'enabled' => $settings['COMMISSIONS']->rules['enabled']];
+                $savedLine = AccessorySaleLine::create($line + ['sale_id' => $sale->id, 'pending_commission_snapshot' => $line['cost_cents'] === null ? $commissionSnapshot : null]);
+                if ($line['cost_cents'] !== null) {
+                    CommissionEntry::create([
+                        'sale_line_id' => $savedLine->id, 'user_id' => $u->id, 'actor_name' => $u->name,
+                        'amount_cents' => app(CommissionCalculator::class)->calculate($line, $settings['COMMISSIONS']->rules),
+                        'snapshot' => $commissionSnapshot, 'created_at' => $at,
+                    ]);
+                }
                 if (($line['kind'] ?? 'ACCESSORY') === 'PHONE') {
                     $p = $units[$line['phone_unit_id']];
                     PhoneWarranty::create(app(PhoneWarrantyCalculator::class)->calculate($p, $at) + ['sale_line_id' => $savedLine->id, 'unit_id' => $p->id, 'created_at' => $at]);
