@@ -43,7 +43,7 @@ it('C294 returns only the owners frozen commissions and separates accessory and 
     c294Entry($a, 'PHONE', 2400);
     c294Entry($b, 'PHONE', 99999, 'AJENO-C294');
     $query = app(OwnCommissionsQuery::class);
-    expect($query->overview($a))->toBe(['paid_cents' => 0, 'pending_cents' => 2500, 'total_cents' => 2500, 'accessory_cents' => 100, 'phone_cents' => 2400]);
+    expect($query->overview($a))->toBe(['deducted_cents' => 0, 'paid_cents' => 0, 'pending_cents' => 2500, 'total_cents' => 2500, 'accessory_cents' => 100, 'phone_cents' => 2400]);
     $rows = $query->history($a)->get();
     expect($rows)->toHaveCount(2);
     foreach ($rows as $row) {
@@ -82,7 +82,7 @@ it('C294 renders a zero balance and empty history without creating commissions o
     [$a] = c294People();
     test()->actingAs($a);
     $query = app(OwnCommissionsQuery::class);
-    expect($query->overview($a))->toBe(['paid_cents' => 0, 'pending_cents' => 0, 'total_cents' => 0, 'accessory_cents' => 0, 'phone_cents' => 0]);
+    expect($query->overview($a))->toBe(['deducted_cents' => 0, 'paid_cents' => 0, 'pending_cents' => 0, 'total_cents' => 0, 'accessory_cents' => 0, 'phone_cents' => 0]);
     Livewire::test(OwnCommissionsWidget::class)->assertSee('Todavía no tienes comisiones registradas')->assertSee('Bs 0')->assertCountTableRecords(0);
     expect(CommissionEntry::count())->toBe(0)->and(AccessorySale::count())->toBe(0);
     Http::assertNothingSent();

@@ -2,6 +2,7 @@
 
 namespace App\Domain\Comisiones\Queries;
 
+use App\Domain\Comisiones\Models\CommissionDeduction;
 use App\Domain\Comisiones\Models\CommissionEntry;
 use App\Domain\Comisiones\Models\CommissionPayment;
 use App\Models\User;
@@ -43,7 +44,9 @@ class AdminCommissionsQuery
 
         $paid = (int) CommissionPayment::active()->sum('amount_cents');
 
-        return ['paid_cents' => $paid, 'pending_cents' => (int) $row->total_cents - $paid, 'total_cents' => (int) $row->total_cents, 'accessory_cents' => (int) $row->accessory_cents, 'phone_cents' => (int) $row->phone_cents];
+        $deducted = (int) CommissionDeduction::sum('amount_cents');
+
+        return ['deducted_cents' => $deducted, 'paid_cents' => $paid, 'pending_cents' => (int) $row->total_cents - $paid - $deducted, 'total_cents' => (int) $row->total_cents, 'accessory_cents' => (int) $row->accessory_cents, 'phone_cents' => (int) $row->phone_cents];
     }
 
     public function cashiers(User $actor): Builder
@@ -52,8 +55,10 @@ class AdminCommissionsQuery
 
         $payments = CommissionPayment::active()->selectRaw('user_id, SUM(amount_cents) AS paid_cents')->groupBy('user_id');
 
-        return User::query()->leftJoinSub($totals, 'earned', 'earned.user_id', '=', 'users.id')->leftJoinSub($payments, 'payments', 'payments.user_id', '=', 'users.id')->where(fn (Builder $q) => $q->whereHas('roles', fn (Builder $role) => $role->whereIn('name', ['cajera', 'encargado'])->where('guard_name', 'web'))->orWhereNotNull('earned.user_id'))
-            ->select(['users.id', 'users.name', 'users.is_active'])->selectRaw('COALESCE(payments.paid_cents,0) AS paid_cents, COALESCE(earned.total_cents,0)-COALESCE(payments.paid_cents,0) AS pending_cents, COALESCE(earned.total_cents,0) AS total_cents, COALESCE(earned.accessory_cents,0) AS accessory_cents, COALESCE(earned.phone_cents,0) AS phone_cents');
+        $deductions = CommissionDeduction::selectRaw('user_id, SUM(amount_cents) AS deducted_cents')->groupBy('user_id');
+
+        return User::query()->leftJoinSub($deductions, 'deductions', 'deductions.user_id', '=', 'users.id')->leftJoinSub($totals, 'earned', 'earned.user_id', '=', 'users.id')->leftJoinSub($payments, 'payments', 'payments.user_id', '=', 'users.id')->where(fn (Builder $q) => $q->whereHas('roles', fn (Builder $role) => $role->whereIn('name', ['cajera', 'encargado'])->where('guard_name', 'web'))->orWhereNotNull('earned.user_id'))
+            ->select(['users.id', 'users.name', 'users.is_active'])->selectRaw('COALESCE(payments.paid_cents,0) AS paid_cents, COALESCE(deductions.deducted_cents,0) AS deducted_cents, COALESCE(earned.total_cents,0)-COALESCE(payments.paid_cents,0)-COALESCE(deductions.deducted_cents,0) AS pending_cents, COALESCE(earned.total_cents,0) AS total_cents, COALESCE(earned.accessory_cents,0) AS accessory_cents, COALESCE(earned.phone_cents,0) AS phone_cents');
     }
 
     public function history(User $actor, int $userId): Builder

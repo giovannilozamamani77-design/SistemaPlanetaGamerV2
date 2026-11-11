@@ -32,6 +32,8 @@ class OwnCommissionsQuery
 
         $paid = (int) app(CommissionPaymentQuery::class)->history($actor, $actor->id)->whereNull('reversal.id')->sum('commission_payments.amount_cents');
 
-        return ['paid_cents' => $paid, 'pending_cents' => (int) $row->total - $paid, 'total_cents' => (int) $row->total, 'accessory_cents' => (int) $row->accessories, 'phone_cents' => (int) $row->phones];
+        $deducted = app(CommissionDeductionQuery::class)->total($actor, $actor->id);
+
+        return ['deducted_cents' => $deducted, 'paid_cents' => $paid, 'pending_cents' => (int) $row->total - $paid - $deducted, 'total_cents' => (int) $row->total, 'accessory_cents' => (int) $row->accessories, 'phone_cents' => (int) $row->phones];
     }
 }

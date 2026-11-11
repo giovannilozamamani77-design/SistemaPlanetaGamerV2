@@ -44,6 +44,6 @@ class CommissionPaymentQuery
         $earned = (int) CommissionEntry::where('user_id', $userId)->sum('amount_cents');
         $paid = (int) CommissionPayment::active()->where('user_id', $userId)->sum('amount_cents');
 
-        return ['earned_cents' => $earned, 'paid_cents' => $paid, 'pending_cents' => $earned - $paid];
+        return ['earned_cents' => $earned, 'paid_cents' => $paid, 'pending_cents' => $earned - $paid - app(CommissionDeductionQuery::class)->total($actor, $userId)];
     }
 }

@@ -68,6 +68,7 @@ class CommissionDashboard extends Page implements HasTable
                 TextColumn::make('accessory_cents')->label('Accesorios')->color('warning')->formatStateUsing(fn ($state) => 'Bs '.Bolivianos::formatCompact((int) $state)),
                 TextColumn::make('phone_cents')->label('Teléfonos')->color('info')->formatStateUsing(fn ($state) => 'Bs '.Bolivianos::formatCompact((int) $state)),
                 TextColumn::make('total_cents')->label('Ganado')->weight('bold')->color('success')->formatStateUsing(fn ($state) => 'Bs '.Bolivianos::formatCompact((int) $state)),
+                TextColumn::make('deducted_cents')->label('Descontado')->formatStateUsing(fn ($state) => 'Bs '.Bolivianos::formatCompact((int) $state)),
                 TextColumn::make('paid_cents')->label('Pagado')->formatStateUsing(fn ($state) => 'Bs '.Bolivianos::formatCompact((int) $state)),
                 TextColumn::make('pending_cents')->label('Pendiente')->weight('bold')->color('warning')->formatStateUsing(fn ($state) => 'Bs '.Bolivianos::formatCompact((int) $state)),
                 TextColumn::make('is_active')->label('Cuenta')->badge()->formatStateUsing(fn (bool $state) => $state ? 'Activa' : 'Desactivada')->color(fn (bool $state) => $state ? 'success' : 'gray'),

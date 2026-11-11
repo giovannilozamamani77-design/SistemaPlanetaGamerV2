@@ -14,9 +14,11 @@ use App\Filament\Resources\ControlHorario\ScheduledWorkdays\Tables\ScheduledWork
 use App\Filament\Resources\ControlHorario\TimeIncidents\Tables\TimeIncidentsTable;
 use App\Filament\Resources\Incidencias\EconomicIncidents\Tables\EconomicIncidentsTable;
 use App\Filament\Resources\Usuarios\Users\UserResource;
+use App\Filament\Support\Comisiones\CommissionDeductionActions;
 use App\Filament\Support\Comisiones\CommissionPaymentActions;
 use App\Filament\Support\Personal\HandlesPersonnelActionErrors;
 use App\Filament\Widgets\Comisiones\AdminCommissionHistoryWidget;
+use App\Filament\Widgets\Comisiones\CommissionDeductionsWidget;
 use App\Filament\Widgets\Comisiones\CommissionPaymentsWidget;
 use App\Support\Bolivianos;
 use Filament\Actions\Action;
@@ -122,13 +124,16 @@ class PersonnelRecord extends Page implements HasTable
     {
         $query = app(AdminCommissionsQuery::class)->cashiers(auth()->user())->where('users.id', $this->employeeId);
 
-        return $table->heading('Comisiones y retiros registrados')->description('Registra únicamente pagos realmente entregados. Los atrasos no descuentan comisiones automáticamente.')
+        return $table->heading('Comisiones y retiros registrados')->description('Los pagos representan entregas reales; los descuentos por faltas o atrasos se confirman por separado y conservan su historial.')
             ->query($query)->columns([
                 TextColumn::make('total_cents')->label('Ganado')->formatStateUsing(fn ($state) => 'Bs '.Bolivianos::format((int) $state)),
+                TextColumn::make('deducted_cents')->label('Descontado')->formatStateUsing(fn ($state) => 'Bs '.Bolivianos::format((int) $state)),
                 TextColumn::make('paid_cents')->label('Pagado')->formatStateUsing(fn ($state) => 'Bs '.Bolivianos::format((int) $state)),
                 TextColumn::make('pending_cents')->label('Pendiente')->formatStateUsing(fn ($state) => 'Bs '.Bolivianos::format((int) $state)),
             ])->recordActions([
                 CommissionPaymentActions::pay(),
+                CommissionDeductionActions::register(),
+                Action::make('deductions')->label('Historial de descuentos')->modalSubmitAction(false)->modalWidth('7xl')->schema(fn ($record) => [Livewire::make(CommissionDeductionsWidget::class, ['userId' => $record->id])->key('deductions-'.$record->id)]),
                 Action::make('payments')->label('Historial de pagos')->modalSubmitAction(false)->modalWidth('7xl')->schema(fn ($record) => [Livewire::make(CommissionPaymentsWidget::class, ['userId' => $record->id])->key('payments-'.$record->id)]),
                 Action::make('sales')->label('Origen de comisiones')->modalSubmitAction(false)->modalWidth('7xl')->schema(fn ($record) => [Livewire::make(AdminCommissionHistoryWidget::class, ['userId' => $record->id])->key('sales-'.$record->id)]),
             ])->paginated(false);

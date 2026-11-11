@@ -3,6 +3,7 @@
 namespace App\Filament\Support\Comisiones;
 
 use App\Domain\Comisiones\Actions\RegisterCommissionPaymentAction;
+use App\Domain\Comisiones\Queries\CommissionDeductionQuery;
 use App\Domain\Comisiones\Queries\CommissionPaymentQuery;
 use App\Models\User;
 use App\Support\Bolivianos;
@@ -26,13 +27,13 @@ class CommissionPaymentActions
             ->fillForm(function (User $record): array {
                 $balance = app(CommissionPaymentQuery::class)->balance(auth()->user(), $record->id);
 
-                return ['amount' => number_format($balance['pending_cents'] / 100, 2, '.', ''), 'pending_label' => 'Bs '.Bolivianos::formatCompact($balance['pending_cents']), 'expected_earned_cents' => $balance['earned_cents'], 'expected_paid_cents' => $balance['paid_cents'], 'expected_reversal_count' => app(CommissionPaymentQuery::class)->reversalCount(auth()->user(), $record->id), 'request_key' => (string) Str::uuid(), 'delivered' => false];
+                return ['expected_deducted_cents' => app(CommissionDeductionQuery::class)->total(auth()->user(), $record->id), 'amount' => number_format($balance['pending_cents'] / 100, 2, '.', ''), 'pending_label' => 'Bs '.Bolivianos::formatCompact($balance['pending_cents']), 'expected_earned_cents' => $balance['earned_cents'], 'expected_paid_cents' => $balance['paid_cents'], 'expected_reversal_count' => app(CommissionPaymentQuery::class)->reversalCount(auth()->user(), $record->id), 'request_key' => (string) Str::uuid(), 'delivered' => false];
             })->schema([
                 TextInput::make('pending_label')->label('Pendiente actual')->readOnly()->dehydrated(false),
                 TextInput::make('amount')->label('Importe a pagar')->prefix('Bs')->inputMode('decimal')->required()->helperText('Deja el total para cancelar todo o escribe una cantidad menor para un pago parcial.'),
                 TextInput::make('reference')->label('Referencia (opcional)')->maxLength(100),
                 Textarea::make('note')->label('Observación (opcional)')->rows(2)->maxLength(300),
-                Hidden::make('expected_earned_cents'), Hidden::make('expected_paid_cents'), Hidden::make('expected_reversal_count'), Hidden::make('request_key'),
+                Hidden::make('expected_deducted_cents'), Hidden::make('expected_earned_cents'), Hidden::make('expected_paid_cents'), Hidden::make('expected_reversal_count'), Hidden::make('request_key'),
                 Toggle::make('delivered')->label('Confirmo que Administración entregó este importe')->required()->accepted(),
             ])->action(function (User $record, array $data, $livewire): void {
                 $data['user_id'] = $record->id;

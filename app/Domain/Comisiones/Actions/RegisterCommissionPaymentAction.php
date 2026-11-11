@@ -5,6 +5,7 @@ namespace App\Domain\Comisiones\Actions;
 use App\Domain\Accesorios\Data\PricingInput;
 use App\Domain\Comisiones\Models\CommissionPayment;
 use App\Domain\Comisiones\Queries\AdminCommissionsQuery;
+use App\Domain\Comisiones\Queries\CommissionDeductionQuery;
 use App\Domain\Comisiones\Queries\CommissionPaymentQuery;
 use App\Domain\Notificaciones\Actions\RecordAccessoryTelegramNoticeAction;
 use App\Models\User;
@@ -18,7 +19,7 @@ class RegisterCommissionPaymentAction
     public function execute(User $actor, array $data): CommissionPayment
     {
         app(AdminCommissionsQuery::class)->authorize($actor);
-        $v = Validator::make($data, ['user_id' => ['required', 'integer', 'min:1'], 'amount' => ['required'], 'expected_earned_cents' => ['required', 'integer', 'min:0'], 'expected_paid_cents' => ['required', 'integer', 'min:0'], 'expected_reversal_count' => ['sometimes', 'integer', 'min:0'], 'request_key' => ['required', 'uuid'], 'delivered' => ['required', 'accepted'], 'reference' => ['nullable', 'string', 'max:100'], 'note' => ['nullable', 'string', 'max:300']])->validate();
+        $v = Validator::make($data, ['user_id' => ['required', 'integer', 'min:1'], 'amount' => ['required'], 'expected_earned_cents' => ['required', 'integer', 'min:0'], 'expected_paid_cents' => ['required', 'integer', 'min:0'], 'expected_deducted_cents' => ['sometimes', 'integer', 'min:0'], 'expected_reversal_count' => ['sometimes', 'integer', 'min:0'], 'request_key' => ['required', 'uuid'], 'delivered' => ['required', 'accepted'], 'reference' => ['nullable', 'string', 'max:100'], 'note' => ['nullable', 'string', 'max:300']])->validate();
         $amount = PricingInput::money($v['amount'], 'amount');
         $reference = trim($v['reference'] ?? '') ?: null;
         $note = trim($v['note'] ?? '') ?: null;
@@ -38,7 +39,7 @@ class RegisterCommissionPaymentAction
                 return $old;
             }
             $balance = app(CommissionPaymentQuery::class)->balance($actor, $target->id);
-            if ($balance['earned_cents'] !== (int) $v['expected_earned_cents'] || $balance['paid_cents'] !== (int) $v['expected_paid_cents'] || app(CommissionPaymentQuery::class)->reversalCount($actor, $target->id) !== (int) ($v['expected_reversal_count'] ?? 0)) {
+            if (app(CommissionDeductionQuery::class)->total($actor, $target->id) !== (int) ($v['expected_deducted_cents'] ?? 0) || $balance['earned_cents'] !== (int) $v['expected_earned_cents'] || $balance['paid_cents'] !== (int) $v['expected_paid_cents'] || app(CommissionPaymentQuery::class)->reversalCount($actor, $target->id) !== (int) ($v['expected_reversal_count'] ?? 0)) {
                 throw ValidationException::withMessages(['amount' => 'El saldo cambió. Cierra la ventana y revisa el pendiente antes de registrar otro pago.']);
             }
             if ($amount > $balance['pending_cents']) {

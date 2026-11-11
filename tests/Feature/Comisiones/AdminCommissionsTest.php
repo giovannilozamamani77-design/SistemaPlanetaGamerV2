@@ -52,7 +52,7 @@ it('C295 aggregates stored commissions per cashier and globally including former
     $zero = User::factory()->create(['name' => 'Sin ventas']);
     $zero->assignRole('cajera');
     $query = app(AdminCommissionsQuery::class);
-    expect($query->overview($admin))->toBe(['paid_cents' => 0, 'pending_cents' => 3100, 'total_cents' => 3100, 'accessory_cents' => 100, 'phone_cents' => 3000]);
+    expect($query->overview($admin))->toBe(['deducted_cents' => 0, 'paid_cents' => 0, 'pending_cents' => 3100, 'total_cents' => 3100, 'accessory_cents' => 100, 'phone_cents' => 3000]);
     $people = $query->cashiers($admin)->get()->keyBy('id');
     expect($people)->toHaveCount(3)->and((int) $people[$a->id]->total_cents)->toBe(2500)->and((int) $people[$b->id]->phone_cents)->toBe(600)->and((int) $people[$zero->id]->total_cents)->toBe(0);
     $rows = $query->history($admin, $a->id)->get();
@@ -103,7 +103,7 @@ it('C295 denies cashier and manager access and rechecks revoked administrator au
 it('C295 shows an empty panel without writing data and paginates earlier cashiers', function () {
     [$admin,$a,$b] = c295People();
     test()->actingAs($admin);
-    expect(app(AdminCommissionsQuery::class)->overview($admin))->toBe(['paid_cents' => 0, 'pending_cents' => 0, 'total_cents' => 0, 'accessory_cents' => 0, 'phone_cents' => 0]);
+    expect(app(AdminCommissionsQuery::class)->overview($admin))->toBe(['deducted_cents' => 0, 'paid_cents' => 0, 'pending_cents' => 0, 'total_cents' => 0, 'accessory_cents' => 0, 'phone_cents' => 0]);
     Livewire::test(AdminCommissionHistoryWidget::class, ['userId' => $a->id])->assertCountTableRecords(0)->assertSee('Sin comisiones registradas');
     for ($i = 0; $i < 5; $i++) {
         $u = User::factory()->create(['name' => 'Cajera Extra '.$i]);
