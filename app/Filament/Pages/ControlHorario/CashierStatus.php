@@ -33,7 +33,7 @@ class CashierStatus extends Page implements HasTable
 
     public static function canAccess(): bool
     {
-        $actor = auth()->user();
+        $actor = auth()->check() ? User::find(auth()->id()) : null;
 
         return $actor instanceof User && $actor->is_active && $actor->hasRole('administrador')
             && $actor->can('controlhorario.revisar') && $actor->can('incidencias.ver_todos');
@@ -61,6 +61,8 @@ class CashierStatus extends Page implements HasTable
                 TextColumn::make('money_under_review')->label('Faltantes en revisión')->state(fn (User $record) => 'Bs '.Bolivianos::format($this->money($record)['under_review'])),
                 TextColumn::make('salary_pay_day')->label('Día de pago')->placeholder('Sin configurar'),
             ])->recordActions([
+                Action::make('record')->label('Ver expediente')->icon('heroicon-o-clipboard-document-list')
+                    ->url(fn (User $record) => PersonnelRecord::getUrl(['employee' => $record->id])),
                 Action::make('profile')->label('Perfil y condiciones')->icon('heroicon-o-user')
                     ->visible(fn (User $record) => UserResource::canEdit($record))
                     ->url(fn (User $record) => UserResource::getUrl('edit', ['record' => $record])),

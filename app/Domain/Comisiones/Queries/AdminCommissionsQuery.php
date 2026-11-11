@@ -52,7 +52,7 @@ class AdminCommissionsQuery
 
         $payments = CommissionPayment::active()->selectRaw('user_id, SUM(amount_cents) AS paid_cents')->groupBy('user_id');
 
-        return User::query()->leftJoinSub($totals, 'earned', 'earned.user_id', '=', 'users.id')->leftJoinSub($payments, 'payments', 'payments.user_id', '=', 'users.id')->where(fn (Builder $q) => $q->whereHas('roles', fn (Builder $role) => $role->where('name', 'cajera')->where('guard_name', 'web'))->orWhereNotNull('earned.user_id'))
+        return User::query()->leftJoinSub($totals, 'earned', 'earned.user_id', '=', 'users.id')->leftJoinSub($payments, 'payments', 'payments.user_id', '=', 'users.id')->where(fn (Builder $q) => $q->whereHas('roles', fn (Builder $role) => $role->whereIn('name', ['cajera', 'encargado'])->where('guard_name', 'web'))->orWhereNotNull('earned.user_id'))
             ->select(['users.id', 'users.name', 'users.is_active'])->selectRaw('COALESCE(payments.paid_cents,0) AS paid_cents, COALESCE(earned.total_cents,0)-COALESCE(payments.paid_cents,0) AS pending_cents, COALESCE(earned.total_cents,0) AS total_cents, COALESCE(earned.accessory_cents,0) AS accessory_cents, COALESCE(earned.phone_cents,0) AS phone_cents');
     }
 
