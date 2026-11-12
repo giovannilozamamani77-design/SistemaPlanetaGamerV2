@@ -1,0 +1,28 @@
+<div class="space-y-4">
+    <form wire:submit="applyTransactionFilters" class="grid gap-3 md:grid-cols-3">
+        <div><label for="transaction-period">Periodo</label><x-filament::input.wrapper><x-filament::input.select id="transaction-period" wire:model.live="transactionPeriod">@foreach(\App\Domain\Reportes\Data\CashierTransactionPeriod::OPTIONS as $key=>$label)<option value="{{ $key }}">{{ $label }}</option>@endforeach</x-filament::input.select></x-filament::input.wrapper>@error('transactionPeriod')<p class="text-danger-600">{{ $message }}</p>@enderror</div>
+        <div><label for="transaction-person">Cajera / responsable</label><x-filament::input.wrapper><x-filament::input.select id="transaction-person" wire:model="transactionCashier"><option value="">Todo el personal</option>@foreach($cashiers as $id=>$name)<option value="{{ $id }}">{{ $name }}</option>@endforeach</x-filament::input.select></x-filament::input.wrapper>@error('transactionCashier')<p class="text-danger-600">{{ $message }}</p>@enderror</div>
+        <div><label for="transaction-box">Caja</label><x-filament::input.wrapper><x-filament::input.select id="transaction-box" wire:model="transactionBox"><option value="">Todas las cajas</option>@foreach($boxes as $id=>$name)<option value="{{ $id }}">{{ $name }}</option>@endforeach</x-filament::input.select></x-filament::input.wrapper>@error('transactionBox')<p class="text-danger-600">{{ $message }}</p>@enderror</div>
+        @if($transactionPeriod === 'range')
+            <div><label for="transaction-from">Desde</label><x-filament::input.wrapper><x-filament::input id="transaction-from" type="date" wire:model="transactionFrom" /></x-filament::input.wrapper>@error('transactionFrom')<p class="text-danger-600">{{ $message }}</p>@enderror</div>
+            <div><label for="transaction-until">Hasta</label><x-filament::input.wrapper><x-filament::input id="transaction-until" type="date" wire:model="transactionUntil" /></x-filament::input.wrapper>@error('transactionUntil')<p class="text-danger-600">{{ $message }}</p>@enderror</div>
+        @endif
+        <div class="flex items-end"><x-filament::button type="submit" icon="heroicon-o-funnel" wire:loading.attr="disabled">Consultar detalle</x-filament::button></div>
+    </form>
+    <x-filament::badge icon="heroicon-o-calendar-days">Consultado {{ \Carbon\CarbonImmutable::parse($detail['filters']['from'])->format('d/m/Y') }} — {{ \Carbon\CarbonImmutable::parse($detail['filters']['until'])->format('d/m/Y') }} · Bolivia</x-filament::badge>
+    <p class="text-sm text-gray-500">Estos filtros consultan solamente esta ventana; el acumulado principal se mantiene. Pulsa Consultar detalle para aplicar la selección.</p>
+    @if($transactionSource === 'BCP')
+        <div class="grid gap-3 md:grid-cols-2"><x-filament::section compact><p>Generales BCP del periodo</p><p class="text-3xl font-bold">{{ $detail['general'] }}</p></x-filament::section><x-filament::section compact><p>Fijas BCP del periodo</p><p class="text-3xl font-bold">{{ $detail['fixed'] }}</p></x-filament::section></div>
+        <p class="text-sm text-gray-500">Se conocen por los cierres confirmados del periodo. Si hoy la caja aún no cerró, no hay un conteo parcial BCP disponible. Las primeras lecturas sin referencia no se atribuyen como transacciones del turno.</p>
+    @else
+        <x-filament::section compact><p>Operaciones registradas del periodo</p><p class="text-3xl font-bold">{{ $detail['operations'] }}</p></x-filament::section>
+    @endif
+    <div class="overflow-x-auto"><table class="w-full text-left text-sm"><thead><tr><th class="p-3">Cajera / responsable</th>@if($transactionSource === 'BCP')<th class="p-3">Generales BCP</th><th class="p-3">Fijas BCP</th>@else<th class="p-3">Operaciones registradas</th>@endif</tr></thead><tbody>
+        @forelse($detail['ranking'] as $row)<tr class="border-t border-gray-200 dark:border-white/10"><td class="p-3">{{ $row['name'] }}</td>@if($transactionSource === 'BCP')<td class="p-3">{{ $row['general'] }}</td><td class="p-3">{{ $row['fixed'] }}</td>@else<td class="p-3">{{ $row['operations'] }}</td>@endif</tr>@empty<tr><td colspan="3" class="p-3">Sin actividad registrada en la selección.</td></tr>@endforelse
+    </tbody></table></div>
+    <h3 class="font-semibold">{{ $transactionSource === 'BCP' ? 'Cierres que componen el conteo' : 'Operaciones del periodo consultado' }}</h3>
+    <div class="overflow-x-auto"><table class="w-full text-left text-sm"><thead><tr><th class="p-3">Fecha</th><th class="p-3">Cajera</th><th class="p-3">Caja</th>@if($transactionSource === 'BCP')<th class="p-3">Generales del turno</th><th class="p-3">Fijas del turno</th>@else<th class="p-3">Tipo</th><th class="p-3">Monto registrado</th>@endif</tr></thead><tbody>
+        @php($records = $transactionSource === 'BCP' ? $detail['counter_records'] : $detail['operation_records'])
+        @forelse($records as $row)<tr class="border-t border-gray-200 dark:border-white/10"><td class="p-3">{{ \Carbon\CarbonImmutable::parse($row->created_at,'UTC')->timezone('America/La_Paz')->format('d/m/Y H:i:s') }}</td><td class="p-3">{{ $row->user_name }}</td><td class="p-3">{{ $row->box_name }}</td>@if($transactionSource === 'BCP')<td class="p-3">{{ $row->baseline ? 'Referencia inicial' : $row->delta }}</td><td class="p-3">{{ $row->fixed_delta ?? 'Sin referencia' }}</td>@else<td class="p-3">{{ $row->fee_type }} @if($row->bill_count) · {{ $row->bill_count }} facturas @endif</td><td class="p-3">Bs {{ \App\Support\Bolivianos::format($row->amount_cents) }}</td>@endif</tr>@empty<tr><td colspan="5" class="p-3">Sin registros para este periodo.</td></tr>@endforelse
+    </tbody></table></div>{{ $records->links() }}
+</div>

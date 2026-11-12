@@ -7,6 +7,7 @@ use App\Domain\Cajas\Models\CashBoxOperation;
 use App\Domain\Cajas\Models\CashBoxSession;
 use App\Domain\ControlHorario\Models\ScheduledWorkday;
 use App\Domain\Incidencias\Models\EconomicIncident;
+use App\Domain\Reportes\Data\CashierTransactionPeriod;
 use App\Domain\Reportes\Queries\CashBoxReportQuery;
 use App\Filament\Pages\Reportes\CashBoxReport;
 use App\Filament\Pages\Reportes\CashierTransactionsReport;
@@ -169,4 +170,58 @@ it('offers a dedicated transaction page without commission shortage or opening s
     $page->set('cashierId', (string) $this->cashier->id)->set('cashBoxId', (string) $this->box->id)->call('applyCashFilters')->assertHasNoErrors();
     expect($page->instance()->appliedFilters['user_id'])->toBe((string) $this->cashier->id);
     $this->actingAs($this->cashier)->get(CashierTransactionsReport::getUrl())->assertForbidden();
+});
+
+it('resolves quick detail periods in Bolivia using inclusive calendar days', function (string $period, string $from, string $until) {
+    expect(app(CashierTransactionPeriod::class)->resolve($period))->toBe(['from' => $from, 'until' => $until]);
+})->with([
+    ['today', '2026-11-12', '2026-11-12'], ['yesterday', '2026-11-11', '2026-11-11'],
+    ['last3', '2026-11-10', '2026-11-12'], ['last4', '2026-11-09', '2026-11-12'],
+    ['week', '2026-11-09', '2026-11-12'], ['previous_week', '2026-11-02', '2026-11-08'],
+    ['month', '2026-11-01', '2026-11-12'], ['previous_month', '2026-10-01', '2026-10-31'],
+]);
+
+it('filters the floating transaction details without changing the accumulated main report', function () {
+    $s = cashReportSession($this->cashier, $this->box);
+    cashReportOperation($s, 100, '2026-11-12 12:00:00');
+    cashReportOperation($s, 200, '2026-11-11 12:00:00');
+    $page = Livewire::test(CashierTransactionsReport::class)->call('showTransactionDetails', 'OPERATIONS')
+        ->assertSet('transactionModalOpen', true)->assertSet('transactionFilters.from', '2026-11-12')->assertDispatched('open-modal', id: 'cashier-transaction-details');
+    $data = $page->instance()->render()->getData();
+    expect($data['transactionDetails']['operations'])->toBe(1)->and($data['cashReport']['operations'])->toBe(2);
+    $page->set('transactionPeriod', 'yesterday')->set('transactionCashier', (string) $this->cashier->id)->call('applyTransactionFilters')->assertHasNoErrors();
+    $data = $page->instance()->render()->getData();
+    expect($data['transactionDetails']['operations'])->toBe(1)->and($data['transactionDetails']['operation_records']->first()->fee_cents)->toBe(200);
+    $page->assertSet('transactionFilters.from', '2026-11-11')->assertSet('appliedFilters.from', '2026-11-01');
+    $page->set('transactionPeriod', 'last3')->call('applyTransactionFilters')->assertHasNoErrors();
+    expect($page->instance()->render()->getData()['transactionDetails']['operations'])->toBe(2);
+    $page->call('closeTransactionDetails')->assertSet('transactionModalOpen', false)->assertDispatched('close-modal', id: 'cashier-transaction-details');
+});
+
+it('keeps modal validation errors inside the detail and preserves the last successful selection', function () {
+    $page = Livewire::test(CashierTransactionsReport::class)->call('showTransactionDetails', 'BCP');
+    $page->set('transactionPeriod', 'range')->set('transactionFrom', '2026-11-10')->set('transactionUntil', '2026-11-09')->call('applyTransactionFilters')->assertHasErrors(['transactionUntil']);
+    $page->assertSet('transactionFilters.from', '2026-11-12')->assertSet('transactionModalOpen', true);
+    $page->set('transactionPeriod', 'invalid')->call('applyTransactionFilters')->assertHasErrors(['transactionPeriod']);
+});
+
+it('paginates the floating details independently from the main record lists', function () {
+    $s = cashReportSession($this->cashier, $this->box);
+    for ($i = 0; $i < 12; $i++) {
+        cashReportOperation($s, 100, '2026-11-12 12:00:00');
+    }
+    $page = Livewire::test(CashierTransactionsReport::class)->call('showTransactionDetails', 'OPERATIONS')->call('gotoPage', 2, 'transactionOperationsPage');
+    $data = $page->instance()->render()->getData();
+    expect($data['transactionDetails']['operation_records']->count())->toBe(2)->and($data['transactionDetails']['operations'])->toBe(12)
+        ->and($data['cashReport']['operation_records']->currentPage())->toBe(1);
+    $page->set('transactionPeriod', 'yesterday')->call('applyTransactionFilters');
+    expect($page->instance()->getPage('transactionOperationsPage'))->toBe(1);
+});
+
+it('uses the Bolivia day near UTC midnight and guards access when detail is opened', function () {
+    $this->travelTo(CarbonImmutable::parse('2026-11-13 02:00:00', 'UTC'));
+    expect(app(CashierTransactionPeriod::class)->resolve('today')['from'])->toBe('2026-11-12');
+    $page = Livewire::test(CashierTransactionsReport::class);
+    $this->admin->forceFill(['is_active' => false])->save();
+    $page->call('showTransactionDetails','BCP')->assertForbidden();
 });
