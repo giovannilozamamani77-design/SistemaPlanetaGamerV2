@@ -29,13 +29,13 @@ class CommissionDeductionQuery
     {
         app(CommissionPaymentQuery::class)->authorize($actor, $userId);
 
-        return CommissionDeduction::where('user_id', $userId)->with('incident.scheduledWorkday');
+        return CommissionDeduction::where('user_id', $userId)->with(['incident.scheduledWorkday', 'reversal']);
     }
 
     public function total(User $actor, int $userId): int
     {
         app(CommissionPaymentQuery::class)->authorize($actor, $userId);
 
-        return (int) CommissionDeduction::where('user_id', $userId)->sum('amount_cents');
+        return (int) CommissionDeduction::active()->where('user_id', $userId)->sum('amount_cents');
     }
 }

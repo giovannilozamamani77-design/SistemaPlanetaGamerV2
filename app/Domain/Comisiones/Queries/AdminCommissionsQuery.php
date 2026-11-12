@@ -44,7 +44,7 @@ class AdminCommissionsQuery
 
         $paid = (int) CommissionPayment::active()->sum('amount_cents');
 
-        $deducted = (int) CommissionDeduction::sum('amount_cents');
+        $deducted = (int) CommissionDeduction::active()->sum('amount_cents');
 
         return ['deducted_cents' => $deducted, 'paid_cents' => $paid, 'pending_cents' => (int) $row->total_cents - $paid - $deducted, 'total_cents' => (int) $row->total_cents, 'accessory_cents' => (int) $row->accessory_cents, 'phone_cents' => (int) $row->phone_cents];
     }
@@ -55,7 +55,7 @@ class AdminCommissionsQuery
 
         $payments = CommissionPayment::active()->selectRaw('user_id, SUM(amount_cents) AS paid_cents')->groupBy('user_id');
 
-        $deductions = CommissionDeduction::selectRaw('user_id, SUM(amount_cents) AS deducted_cents')->groupBy('user_id');
+        $deductions = CommissionDeduction::active()->selectRaw('user_id, SUM(amount_cents) AS deducted_cents')->groupBy('user_id');
 
         return User::query()->leftJoinSub($deductions, 'deductions', 'deductions.user_id', '=', 'users.id')->leftJoinSub($totals, 'earned', 'earned.user_id', '=', 'users.id')->leftJoinSub($payments, 'payments', 'payments.user_id', '=', 'users.id')->where(fn (Builder $q) => $q->whereHas('roles', fn (Builder $role) => $role->whereIn('name', ['cajera', 'encargado'])->where('guard_name', 'web'))->orWhereNotNull('earned.user_id'))
             ->select(['users.id', 'users.name', 'users.is_active'])->selectRaw('COALESCE(payments.paid_cents,0) AS paid_cents, COALESCE(deductions.deducted_cents,0) AS deducted_cents, COALESCE(earned.total_cents,0)-COALESCE(payments.paid_cents,0)-COALESCE(deductions.deducted_cents,0) AS pending_cents, COALESCE(earned.total_cents,0) AS total_cents, COALESCE(earned.accessory_cents,0) AS accessory_cents, COALESCE(earned.phone_cents,0) AS phone_cents');

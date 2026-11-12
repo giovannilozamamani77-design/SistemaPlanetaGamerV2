@@ -30,6 +30,7 @@ use Filament\Tables\Concerns\InteractsWithTable;
 use Filament\Tables\Contracts\HasTable;
 use Filament\Tables\Table;
 use Livewire\Attributes\Locked;
+use Livewire\Attributes\On;
 
 class PersonnelRecord extends Page implements HasTable
 {
@@ -73,6 +74,13 @@ class PersonnelRecord extends Page implements HasTable
         $id = filter_var(request()->query('employee'), FILTER_VALIDATE_INT);
         abort_unless($id, 404);
         $this->employeeId = app(PersonnelRecordQuery::class)->employee(auth()->user(), $id)->id;
+    }
+
+    #[On('commission-payments-updated')]
+    public function refreshCommissionBalances(): void
+    {
+        app(PersonnelRecordQuery::class)->employee(auth()->user(), $this->employeeId);
+        $this->flushCachedTableRecords();
     }
 
     public function sections(): array

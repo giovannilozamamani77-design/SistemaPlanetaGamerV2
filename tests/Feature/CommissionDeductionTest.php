@@ -5,7 +5,9 @@ use App\Domain\Accesorios\Models\AccessorySaleLine;
 use App\Domain\Accesorios\Models\CommercialFund;
 use App\Domain\Comisiones\Actions\RegisterCommissionDeductionAction;
 use App\Domain\Comisiones\Actions\RegisterCommissionPaymentAction;
+use App\Domain\Comisiones\Actions\VoidCommissionDeductionAction;
 use App\Domain\Comisiones\Models\CommissionDeduction;
+use App\Domain\Comisiones\Models\CommissionDeductionReversal;
 use App\Domain\Comisiones\Models\CommissionEntry;
 use App\Domain\Comisiones\Queries\AdminCommissionsQuery;
 use App\Domain\Comisiones\Queries\CommissionPaymentQuery;
@@ -182,4 +184,77 @@ it('rechecks administrative permission after the form was opened', function () {
     $this->admin->removeRole('administrador');
     expect(fn () => app(RegisterCommissionDeductionAction::class)->execute($this->admin, $data))->toThrow(AuthorizationException::class);
     expect(CommissionDeduction::count())->toBe(0);
+});
+
+it('returns the deducted amount exactly once while retaining both immutable historical records', function () {
+    deductionEarned($this->cashier);
+    $case = deductionIncident($this->admin, $this->cashier);
+    $deduction = app(RegisterCommissionDeductionAction::class)->execute($this->admin, deductionData($this->cashier, $case));
+    $original = $deduction->fresh()->getAttributes();
+    $data = ['deduction_id' => $deduction->id, 'reason' => 'Monto registrado por error, devolución aprobada', 'confirmed' => true, 'request_key' => (string) Str::uuid()];
+    $action = app(VoidCommissionDeductionAction::class);
+    $reversal = $action->execute($this->admin, $data);
+    expect($action->execute($this->admin, $data)->id)->toBe($reversal->id);
+    expect($reversal->amount_cents)->toBe(1250)->and($reversal->before_pending_cents)->toBe(3750)->and($reversal->after_pending_cents)->toBe(5000);
+    expect($deduction->fresh()->getAttributes())->toBe($original);
+    expect(app(CommissionPaymentQuery::class)->balance($this->admin, $this->cashier->id)['pending_cents'])->toBe(5000)
+        ->and(app(AdminCommissionsQuery::class)->overview($this->admin)['deducted_cents'])->toBe(0)
+        ->and(app(OwnCommissionsQuery::class)->overview($this->cashier)['pending_cents'])->toBe(5000)
+        ->and($case->fresh()->pending_minutes)->toBe(10);
+    expect(CommissionDeduction::count())->toBe(1)->and(CommissionDeductionReversal::count())->toBe(1);
+    expect(fn () => $action->execute($this->admin, array_replace($data, ['request_key' => (string) Str::uuid()])))->toThrow(ValidationException::class);
+    expect(fn () => $reversal->update(['reason' => 'alterado']))->toThrow(LogicException::class);
+    expect(fn () => $reversal->delete())->toThrow(LogicException::class);
+});
+
+it('rejects a reversal without reason or confirmation', function (array $changes) {
+    deductionEarned($this->cashier);
+    $case = deductionIncident($this->admin, $this->cashier);
+    $deduction = app(RegisterCommissionDeductionAction::class)->execute($this->admin, deductionData($this->cashier, $case));
+    $data = array_replace(['deduction_id' => $deduction->id, 'reason' => 'Revisión de error confirmado', 'confirmed' => true, 'request_key' => (string) Str::uuid()], $changes);
+    expect(fn () => app(VoidCommissionDeductionAction::class)->execute($this->admin, $data))->toThrow(ValidationException::class);
+    expect(app(CommissionPaymentQuery::class)->balance($this->admin, $this->cashier->id)['pending_cents'])->toBe(3750);
+})->with(['empty reason' => [['reason' => '  ']], 'no confirmation' => [['confirmed' => false]], 'reason too long' => [['reason' => str_repeat('x', 501)]]]);
+
+it('prevents cashiers managers and inactive administrators from reversing a deduction', function () {
+    deductionEarned($this->cashier);
+    $case = deductionIncident($this->admin, $this->cashier);
+    $deduction = app(RegisterCommissionDeductionAction::class)->execute($this->admin, deductionData($this->cashier, $case));
+    $data = ['deduction_id' => $deduction->id, 'reason' => 'Error confirmado', 'confirmed' => true, 'request_key' => (string) Str::uuid()];
+    $action = app(VoidCommissionDeductionAction::class);
+    foreach ([$this->cashier, $this->manager] as $actor) {
+        expect(fn () => $action->execute($actor, $data))->toThrow(AuthorizationException::class);
+    }
+    $this->actingAs($this->cashier);
+    Livewire::test(CommissionDeductionsWidget::class)->assertTableActionHidden('voidDeduction', $deduction);
+    $this->admin->forceFill(['is_active' => false])->save();
+    expect(fn () => $action->execute($this->admin, $data))->toThrow(AuthorizationException::class);
+    expect(CommissionDeductionReversal::count())->toBe(0);
+});
+
+it('reverses against the current balance after a partial payment and refreshes the administrator history', function () {
+    deductionEarned($this->cashier);
+    $case = deductionIncident($this->admin, $this->cashier);
+    $deduction = app(RegisterCommissionDeductionAction::class)->execute($this->admin, deductionData($this->cashier, $case));
+    app(RegisterCommissionPaymentAction::class)->execute($this->admin, ['user_id' => $this->cashier->id, 'amount' => '10', 'expected_earned_cents' => 5000, 'expected_paid_cents' => 0, 'expected_deducted_cents' => 1250, 'request_key' => (string) Str::uuid(), 'delivered' => true]);
+    $screen = Livewire::test(CommissionDeductionsWidget::class, ['userId' => $this->cashier->id]);
+    $screen->callTableAction('voidDeduction', $deduction, data: ['reason' => 'Corrección revisada por Administración', 'confirmed' => true])->assertHasNoErrors()->assertSee('Anulado')->assertSee('Corrección revisada por Administración')->assertDispatched('commission-payments-updated');
+    expect(app(CommissionPaymentQuery::class)->balance($this->admin, $this->cashier->id))->toBe(['earned_cents' => 5000, 'paid_cents' => 1000, 'pending_cents' => 4000]);
+    $reversal = CommissionDeductionReversal::sole();
+    expect($reversal->before_pending_cents)->toBe(2750)->and($reversal->after_pending_cents)->toBe(4000);
+    $screen->assertTableActionHidden('voidDeduction', $deduction);
+});
+
+it('keeps the reversal form after interruption and safely retries without another credit', function () {
+    deductionEarned($this->cashier);
+    $case = deductionIncident($this->admin, $this->cashier);
+    $deduction = app(RegisterCommissionDeductionAction::class)->execute($this->admin, deductionData($this->cashier, $case));
+    $screen = Livewire::test(CommissionDeductionsWidget::class, ['userId' => $this->cashier->id])->mountTableAction('voidDeduction', $deduction);
+    DB::unprepared("CREATE TRIGGER interrupt_deduction_reversal BEFORE INSERT ON commission_deduction_reversals BEGIN SELECT RAISE(ABORT, 'test interruption'); END");
+    $screen->setActionData(['reason' => 'Corrección de monto erróneo', 'confirmed' => true])->callMountedAction()->assertHasActionErrors(['reason']);
+    expect(app(CommissionPaymentQuery::class)->balance($this->admin, $this->cashier->id)['pending_cents'])->toBe(3750);
+    DB::unprepared('DROP TRIGGER interrupt_deduction_reversal');
+    $screen->callMountedAction()->assertHasNoErrors();
+    expect(CommissionDeductionReversal::count())->toBe(1);
+    expect(app(CommissionPaymentQuery::class)->balance($this->admin, $this->cashier->id)['pending_cents'])->toBe(5000);
 });

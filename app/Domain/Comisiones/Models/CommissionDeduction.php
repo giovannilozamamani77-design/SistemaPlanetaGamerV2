@@ -3,8 +3,10 @@
 namespace App\Domain\Comisiones\Models;
 
 use App\Domain\ControlHorario\Models\TimeIncident;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 
 class CommissionDeduction extends Model
 {
@@ -22,6 +24,16 @@ class CommissionDeduction extends Model
     public function incident(): BelongsTo
     {
         return $this->belongsTo(TimeIncident::class, 'time_incident_id');
+    }
+
+    public function reversal(): HasOne
+    {
+        return $this->hasOne(CommissionDeductionReversal::class, 'deduction_id');
+    }
+
+    public function scopeActive(Builder $query): Builder
+    {
+        return $query->whereDoesntHave('reversal');
     }
 
     protected static function booted(): void
