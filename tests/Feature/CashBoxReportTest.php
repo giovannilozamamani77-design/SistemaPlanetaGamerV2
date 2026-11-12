@@ -9,6 +9,7 @@ use App\Domain\ControlHorario\Models\ScheduledWorkday;
 use App\Domain\Incidencias\Models\EconomicIncident;
 use App\Domain\Reportes\Queries\CashBoxReportQuery;
 use App\Filament\Pages\Reportes\CashBoxReport;
+use App\Filament\Pages\Reportes\CashierTransactionsReport;
 use App\Models\User;
 use Carbon\CarbonImmutable;
 use Database\Seeders\Usuarios\UsuariosPermissionsSeeder;
@@ -155,4 +156,17 @@ it('does not assign unlinked shortages to a box by its mutable name', function (
     $selected = app(CashBoxReportQuery::class)->execute($this->admin, cashReportFilters(['box_id' => $this->box->id]));
     expect($all['shortages']['pending'])->toBe(1000)->and($all['unlinked_shortages'])->toBe(1)
         ->and($selected['shortages']['pending'])->toBe(0)->and($selected['unlinked_shortages'])->toBe(1);
+});
+
+it('offers a dedicated transaction page without commission shortage or opening sections and applies its own filters', function () {
+    $a = cashReportSession($this->cashier, $this->box);
+    $b = cashReportSession($this->manager, $this->otherBox);
+    cashReportOperation($a, 100);
+    cashReportOperation($b, 250);
+    $page = Livewire::test(CashierTransactionsReport::class)->assertSuccessful()
+        ->assertSee('Consultar transacciones por cajera')->assertSee('Transacciones por responsable')
+        ->assertDontSee('Comisiones operativas acumuladas')->assertDontSee('Promedio real de aperturas')->assertDontSee('Casos de faltantes del mes');
+    $page->set('cashierId', (string) $this->cashier->id)->set('cashBoxId', (string) $this->box->id)->call('applyCashFilters')->assertHasNoErrors();
+    expect($page->instance()->appliedFilters['user_id'])->toBe((string) $this->cashier->id);
+    $this->actingAs($this->cashier)->get(CashierTransactionsReport::getUrl())->assertForbidden();
 });

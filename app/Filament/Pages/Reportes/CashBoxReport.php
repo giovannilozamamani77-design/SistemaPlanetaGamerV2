@@ -5,6 +5,7 @@ namespace App\Filament\Pages\Reportes;
 use App\Domain\Cajas\Models\CashBox;
 use App\Domain\Reportes\Queries\CashBoxReportQuery;
 use App\Models\User;
+use Filament\Actions\Action;
 use Illuminate\Support\Facades\Gate;
 use Livewire\Attributes\Locked;
 
@@ -48,6 +49,7 @@ class CashBoxReport extends ModuleReport
     protected function getHeaderActions(): array
     {
         $actions = parent::getHeaderActions();
+        $actions[] = Action::make('cashierTransactions')->label('Transacciones por cajera')->icon('heroicon-o-arrows-right-left')->url(CashierTransactionsReport::getUrl());
         $actions[0]->label('PDF del resumen mensual');
         $actions[1]->label('Excel del resumen mensual');
 
@@ -56,9 +58,14 @@ class CashBoxReport extends ModuleReport
 
     protected function getViewData(): array
     {
+        return [...parent::getViewData(), ...$this->cashViewData()];
+    }
+
+    protected function cashViewData(): array
+    {
         Gate::authorize('viewDailyReports');
 
-        return [...parent::getViewData(),
+        return [
             'cashReport' => app(CashBoxReportQuery::class)->execute(auth()->user(), $this->appliedFilters, [
                 'operations' => $this->getPage('cashOperationsPage'), 'counters' => $this->getPage('cashCountersPage'), 'shortages' => $this->getPage('cashShortagesPage'),
             ]),
