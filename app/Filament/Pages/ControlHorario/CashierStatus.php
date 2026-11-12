@@ -8,11 +8,12 @@ use App\Domain\ControlHorario\Queries\PersonnelTimePeriodQuery;
 use App\Domain\Incidencias\Queries\PersonnelBalancesQuery;
 use App\Filament\Resources\Usuarios\Users\UserResource;
 use App\Models\User;
-use App\Support\Bolivianos;
 use App\Support\TimeDuration;
 use Filament\Actions\Action;
 use Filament\Pages\Page;
-use Filament\Tables\Columns\TextColumn;
+use Filament\Support\Enums\Width;
+use Filament\Tables\Columns\Layout\Stack;
+use Filament\Tables\Columns\ViewColumn;
 use Filament\Tables\Concerns\InteractsWithTable;
 use Filament\Tables\Contracts\HasTable;
 use Filament\Tables\Table;
@@ -39,6 +40,16 @@ class CashierStatus extends Page implements HasTable
             && $actor->can('controlhorario.revisar') && $actor->can('incidencias.ver_todos');
     }
 
+    public function getMaxContentWidth(): Width
+    {
+        return Width::Full;
+    }
+
+    public function getSubheading(): ?string
+    {
+        return 'Elige un perfil para revisar su asistencia, resolver incidencias y consultar sus comisiones.';
+    }
+
     public function table(Table $table): Table
     {
         abort_unless(static::canAccess(), 403);
@@ -48,25 +59,25 @@ class CashierStatus extends Page implements HasTable
         $today = ScheduledWorkday::query()->selectRaw('COUNT(*)')
             ->whereColumn('user_id', 'users.id')->where('work_date', now('America/La_Paz')->toDateString());
 
-        return $table->query(User::role(['cajera', 'encargado'])->addSelect(['available_credit' => $credit, 'today_workdays' => $today]))
+        return $table->query(User::role(['cajera', 'encargado'])->with('roles')->addSelect(['available_credit' => $credit, 'today_workdays' => $today]))
             ->columns([
-                TextColumn::make('name')->label('Personal de caja')->searchable()->sortable(),
-                TextColumn::make('is_active')->label('Cuenta')->badge()->formatStateUsing(fn ($state) => $state ? 'Activa' : 'Inactiva'),
-                TextColumn::make('today_workdays')->label('Jornada de hoy')->badge()->formatStateUsing(fn ($state) => $state ? 'Asignada' : 'Sin jornada registrada'),
-                TextColumn::make('pending_time')->label('Tiempo pendiente')->state(fn (User $record) => TimeDuration::format(
-                    app(PersonnelTimePeriodQuery::class)->execute(auth()->user(), $record)['pending']
-                )),
-                TextColumn::make('available_credit')->label('Crédito de tiempo')->formatStateUsing(fn ($state) => TimeDuration::format((int) $state)),
-                TextColumn::make('pending_money')->label('Faltantes pendientes')->state(fn (User $record) => 'Bs '.Bolivianos::format($this->money($record)['pending'])),
-                TextColumn::make('money_under_review')->label('Faltantes en revisión')->state(fn (User $record) => 'Bs '.Bolivianos::format($this->money($record)['under_review'])),
-                TextColumn::make('salary_pay_day')->label('Día de pago')->placeholder('Sin configurar'),
+                Stack::make([
+                    ViewColumn::make('name')->label('Perfil')->searchable(['name', 'username'])->view('usuarios.personnel-profile-card')
+                        ->viewData(fn (User $record): array => [
+                            'pendingTime' => TimeDuration::format(app(PersonnelTimePeriodQuery::class)->execute(auth()->user(), $record)['pending']),
+                            'money' => $this->money($record),
+                        ]),
+                ]),
             ])->recordActions([
-                Action::make('record')->label('Ver expediente')->icon('heroicon-o-clipboard-document-list')
+                Action::make('record')->label('Entrar al perfil')->button()->icon('heroicon-o-clipboard-document-list')
                     ->url(fn (User $record) => PersonnelRecord::getUrl(['employee' => $record->id])),
                 Action::make('profile')->label('Perfil y condiciones')->icon('heroicon-o-user')
                     ->visible(fn (User $record) => UserResource::canEdit($record))
                     ->url(fn (User $record) => UserResource::getUrl('edit', ['record' => $record])),
-            ])->defaultSort('name')->paginated([10, 25, 50]);
+            ])->contentGrid(['md' => 2, '2xl' => 3])->recordUrl(null)
+            ->extraAttributes(['class' => 'pg-user-cards pg-personnel-profiles'])
+            ->searchPlaceholder('Buscar por nombre o usuario')->emptyStateHeading('No hay perfiles para mostrar')
+            ->defaultSort('name')->paginated([6, 12, 24])->defaultPaginationPageOption(6);
     }
 
     protected function money(User $cashier): array

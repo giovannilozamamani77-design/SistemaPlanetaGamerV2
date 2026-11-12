@@ -176,7 +176,7 @@
 }
 
 /* Own profile: presentation only; history widgets and form actions stay native. */
-.pg-profile-header {
+.pg-profile-header, .pg-admin-profile-header {
     overflow: hidden;
     border: 1px solid var(--pg-border);
     border-radius: 16px;
@@ -459,3 +459,21 @@ body:has(.pg-profile-header) .pg-topbar { padding-block: 8px; }
 .pg-shortage-accumulated .fi-wi-stats-overview-stat-value { font-size:2rem; font-weight:750; }
 .pg-repayment-destination { display:grid; gap:10px; padding:16px; border:1px solid var(--pg-border); border-radius:12px; background:var(--pg-surface); }
 .pg-repayment-destination strong { color:var(--pg-selected-text); }
+
+
+/* Administrative staff cards reuse the personal profile cover and identity. */
+.pg-personnel-profiles .fi-ta-record { overflow: hidden; }
+.pg-personnel-profile { width: 100%; min-width: 0; color: var(--pg-text); }
+.pg-personnel-profile .pg-profile-cover { height: 82px; padding: 18px; border-radius: 12px 12px 0 0; }
+.pg-personnel-profile .pg-profile-identity { gap: 12px; padding: 0 4px 20px; align-items: flex-start; }
+.pg-personnel-profile .pg-profile-avatar { width: 76px; height: 76px; font-size: 24px; margin-top: -28px; border-width: 4px; }
+.pg-personnel-profile .pg-profile-name { padding-top: 12px; min-width: 120px; }
+.pg-personnel-profile .pg-profile-name h2 { font-size: 20px; margin: 5px 0; }
+.pg-personnel-profile .pg-profile-identity > .fi-badge { margin-top: 14px; }
+.pg-personnel-profile-metrics { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+.pg-personnel-profile-metrics > div { min-width: 0; padding: 12px; border-radius: 10px; background: var(--pg-selected); }
+.pg-personnel-profile-metrics dt { color: var(--pg-muted); font-size: 11px; }
+.pg-personnel-profile-metrics dd { margin-top: 6px; font-size: 17px; font-weight: 600; overflow-wrap: anywhere; }
+.pg-personnel-profile .pg-profile-footer { margin-top: 16px; padding: 14px 0 0; gap: 10px 18px; }
+
+.pg-admin-profile-header .pg-profile-identity > .fi-badge { margin-top: 24px; }
